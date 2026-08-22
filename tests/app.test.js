@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 function extractFunction(name) {
   const start = appSource.indexOf(`function ${name}(`);
@@ -134,4 +135,30 @@ test('only one save and load implementation remains', () => {
   assert.equal((appSource.match(/function loadProject\s*\(/g) || []).length, 0);
   assert.equal((appSource.match(/saveProject\s*=\s*function/g) || []).length, 1);
   assert.equal((appSource.match(/loadProject\s*=\s*function/g) || []).length, 1);
+});
+
+test('project library has autosave and database import/export controls', () => {
+  assert.match(indexSource, /id="saveProjectToLibrary"/);
+  assert.match(indexSource, /id="openProjectLibrary"/);
+  assert.match(indexSource, /id="projectLibrarySection"/);
+  assert.match(indexSource, /id="pageMessage"/);
+  assert.match(indexSource, /id="exportLibraryDb"/);
+  assert.match(indexSource, /id="importLibraryDb"/);
+  assert.match(appSource, /const libraryDbName = 'werkplan-library'/);
+  assert.match(appSource, /function scheduleLibraryAutoSave\(\)/);
+  assert.match(appSource, /if \(dirty\) scheduleLibraryAutoSave\(\)/);
+  assert.doesNotMatch(appSource, /window\.prompt\('Speichern als:/);
+  assert.match(appSource, /saveProject = function\(\) \{\s*saveProjectToLibrary\(\);\s*\};/);
+  assert.match(appSource, /function projectNameKey\(name\)/);
+  assert.match(appSource, /function findLibraryProjectsByName\(name\)/);
+  assert.match(appSource, /sameNameProjects\.filter\(project => project\.id !== record\.id\)/);
+  assert.match(appSource, /uniqueProjects\.set\(projectNameKey/);
+  assert.match(appSource, /function openProjectLibraryPanel\(\)/);
+  assert.match(appSource, /pageMessage\.hidden = type !== 'success'/);
+  assert.match(appSource, /setStatus\(options\.auto \? 'Automatisch in Bibliothek gespeichert' : 'Erfolgreich in Bibliothek gespeichert', options\.auto \? '' : 'success'\)/);
+  assert.match(appSource, /function saveProjectFile\(\)/);
+  assert.match(indexSource, /id="exportProjectFile"/);
+  assert.match(appSource, /#exportProjectFile'\)\?\.addEventListener\('click', saveProjectFile\)/);
+  assert.match(appSource, /function exportLibraryDb\(\)/);
+  assert.match(appSource, /function importLibraryDb\(file\)/);
 });
