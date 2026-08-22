@@ -1489,11 +1489,12 @@ function renderHandles() {
     addHandle(object.x1, object.y1, 'p1');
     addHandle(object.x2, object.y2, 'p2');
   }
-  if (object.type === 'rect' && Math.abs(object.rotation || 0) < 0.0001) {
-    addHandle(object.x, object.y, 'nw');
-    addHandle(object.x + object.width, object.y, 'ne');
-    addHandle(object.x + object.width, object.y + object.height, 'se');
-    addHandle(object.x, object.y + object.height, 'sw');
+  if (object.type === 'rect') {
+    const [nw, ne, se, sw] = rectCorners(object);
+    addHandle(nw.x, nw.y, 'nw');
+    addHandle(ne.x, ne.y, 'ne');
+    addHandle(se.x, se.y, 'se');
+    addHandle(sw.x, sw.y, 'sw');
   }
   if (object.type === 'circle') addHandle(object.x + object.r, object.y, 'radius');
   if (object.type === 'semicircle') {
@@ -1503,19 +1504,30 @@ function renderHandles() {
     addHandle(end.x, end.y, 'arcEnd');
   }
 }
+function resizeRectFromCorner(object, kind, point) {
+  const corners = rectCorners(object);
+  const oppositeIndex = { nw: 2, ne: 3, se: 0, sw: 1 }[kind];
+  if (oppositeIndex === undefined) return;
+  const opposite = corners[oppositeIndex];
+  const angle = object.rotation || 0;
+  const axisX = { x: Math.cos(angle), y: Math.sin(angle) };
+  const axisY = { x: -Math.sin(angle), y: Math.cos(angle) };
+  const dx = point.x - opposite.x;
+  const dy = point.y - opposite.y;
+  const width = Math.max(1, Math.abs(dx * axisX.x + dy * axisX.y));
+  const height = Math.max(1, Math.abs(dx * axisY.x + dy * axisY.y));
+  object.x = (point.x + opposite.x) / 2 - width / 2;
+  object.y = (point.y + opposite.y) / 2 - height / 2;
+  object.width = width;
+  object.height = height;
+}
 function moveHandle(point) {
   if (!draggingHandle) return;
   const { object, kind } = draggingHandle;
   if (kind === 'p1') { object.x1 = point.x; object.y1 = point.y; }
   if (kind === 'p2') { object.x2 = point.x; object.y2 = point.y; }
   if (object.type === 'rect') {
-    const right = object.x + object.width; const bottom = object.y + object.height;
-    let x1 = object.x; let y1 = object.y; let x2 = right; let y2 = bottom;
-    if (kind === 'nw') { x1 = point.x; y1 = point.y; }
-    if (kind === 'ne') { x2 = point.x; y1 = point.y; }
-    if (kind === 'se') { x2 = point.x; y2 = point.y; }
-    if (kind === 'sw') { x1 = point.x; y2 = point.y; }
-    object.x = Math.min(x1, x2); object.y = Math.min(y1, y2); object.width = Math.max(1, Math.abs(x2 - x1)); object.height = Math.max(1, Math.abs(y2 - y1));
+    resizeRectFromCorner(object, kind, point);
   }
   if (object.type === 'circle' && kind === 'radius') object.r = Math.max(1, distance({ x: object.x, y: object.y }, point));
   if (object.type === 'semicircle' && (kind === 'arcStart' || kind === 'arcEnd')) {
