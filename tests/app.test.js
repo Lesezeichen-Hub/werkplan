@@ -34,6 +34,9 @@ function extractFunction(name) {
 }
 
 const distance = eval(`(${extractFunction('distance')})`);
+const rotatePoint = eval(`(${extractFunction('rotatePoint')})`);
+const rectCorners = eval(`(${extractFunction('rectCorners')})`);
+const resizeRectFromCorner = eval(`(${extractFunction('resizeRectFromCorner')})`);
 const segmentIntersection = eval(`(${extractFunction('segmentIntersection')})`);
 const clampDimensionOffset = eval(`(${extractFunction('clampDimensionOffset')})`);
 const projectDataFromState = eval(`(${extractFunction('projectDataFromState')})`);
@@ -48,6 +51,21 @@ test('segmentIntersection finds a crossing and rejects parallel segments', () =>
     { x: 5, y: 5 }
   );
   assert.equal(segmentIntersection({ x1: 0, y1: 0, x2: 10, y2: 0 }, { x1: 0, y1: 5, x2: 10, y2: 5 }), null);
+});
+
+test('rotated rectangle corner resize keeps the opposite corner anchored', () => {
+  const rect = { type: 'rect', x: 10, y: 20, width: 100, height: 50, rotation: Math.PI / 6 };
+  const originalSe = rectCorners(rect)[2];
+  const nextNw = { x: originalSe.x - 120 * Math.cos(rect.rotation) + 80 * Math.sin(rect.rotation), y: originalSe.y - 120 * Math.sin(rect.rotation) - 80 * Math.cos(rect.rotation) };
+
+  resizeRectFromCorner(rect, 'nw', nextNw);
+
+  const corners = rectCorners(rect);
+  assert.equal(rect.rotation, Math.PI / 6);
+  assert.ok(Math.abs(rect.width - 120) < 0.000001);
+  assert.ok(Math.abs(rect.height - 80) < 0.000001);
+  assert.ok(distance(corners[0], nextNw) < 0.000001);
+  assert.ok(distance(corners[2], originalSe) < 0.000001);
 });
 
 test('dimension offsets stay within the supported range', () => {
