@@ -37,6 +37,9 @@ const distance = eval(`(${extractFunction('distance')})`);
 const rotatePoint = eval(`(${extractFunction('rotatePoint')})`);
 const rectCorners = eval(`(${extractFunction('rectCorners')})`);
 const resizeRectFromCorner = eval(`(${extractFunction('resizeRectFromCorner')})`);
+const resizeEllipseFromHandle = eval(`(${extractFunction('resizeEllipseFromHandle')})`);
+const slotWidthHandlePoint = eval(`(${extractFunction('slotWidthHandlePoint')})`);
+const ellipseEdgeDistance = eval(`(${extractFunction('ellipseEdgeDistance')})`);
 const segmentIntersection = eval(`(${extractFunction('segmentIntersection')})`);
 const clampDimensionOffset = eval(`(${extractFunction('clampDimensionOffset')})`);
 const projectDataFromState = eval(`(${extractFunction('projectDataFromState')})`);
@@ -66,6 +69,27 @@ test('rotated rectangle corner resize keeps the opposite corner anchored', () =>
   assert.ok(Math.abs(rect.height - 80) < 0.000001);
   assert.ok(distance(corners[0], nextNw) < 0.000001);
   assert.ok(distance(corners[2], originalSe) < 0.000001);
+});
+
+test('rotated ellipse radius handles resize along local axes', () => {
+  const ellipse = { type: 'ellipse', x: 100, y: 200, rx: 40, ry: 20, rotation: Math.PI / 4 };
+  resizeEllipseFromHandle(ellipse, 'ellipseRx', rotatePoint({ x: 170, y: 200 }, { x: 100, y: 200 }, Math.PI / 4));
+  resizeEllipseFromHandle(ellipse, 'ellipseRy', rotatePoint({ x: 100, y: 235 }, { x: 100, y: 200 }, Math.PI / 4));
+
+  assert.ok(Math.abs(ellipse.rx - 70) < 0.000001);
+  assert.ok(Math.abs(ellipse.ry - 35) < 0.000001);
+});
+
+test('slot width handle sits on and edits the half-width normal', () => {
+  const slot = { type: 'slot', x1: 0, y1: 0, x2: 100, y2: 0, width: 30 };
+  assert.deepEqual(slotWidthHandlePoint(slot), { x: 50, y: 15 });
+});
+
+test('rotated ellipse edge distance respects object rotation', () => {
+  const ellipse = { type: 'ellipse', x: 10, y: 20, rx: 60, ry: 20, rotation: Math.PI / 2 };
+  const edge = rotatePoint({ x: ellipse.x + ellipse.rx, y: ellipse.y }, ellipse, ellipse.rotation);
+
+  assert.ok(ellipseEdgeDistance(edge, ellipse) < 0.000001);
 });
 
 test('dimension offsets stay within the supported range', () => {

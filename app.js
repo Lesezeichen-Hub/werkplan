@@ -635,6 +635,10 @@ function objectBounds(object) {
   if (object.type === 'text') return { minX: object.x, minY: object.y - 250, maxX: object.x + String(object.value || '').length * 180, maxY: object.y + 80 };
   return null;
 }
+function ellipseEdgeDistance(point, object) {
+  const local = rotatePoint(point, { x: object.x, y: object.y }, -(object.rotation || 0));
+  return Math.abs(Math.hypot((local.x - object.x) / object.rx, (local.y - object.y) / object.ry) - 1) * Math.max(object.rx, object.ry);
+}
 function drawingBounds(padding = 0) {
   const boxes = state.objects.filter(object => object.visible !== false).map(objectBounds).filter(Boolean);
   if (!boxes.length) return null;
@@ -1482,9 +1486,24 @@ function addHandle(x, y, kind) {
   });
   drawingLayer.append(handle);
 }
+function ellipseHandlePoint(object, kind) {
+  const angle = object.rotation || 0;
+  if (kind === 'ellipseRx') return polarPoint({ x: object.x, y: object.y }, object.rx, angle);
+  if (kind === 'ellipseRy') return polarPoint({ x: object.x, y: object.y }, object.ry, angle + Math.PI / 2);
+  return { x: object.x, y: object.y };
+}
+function slotWidthHandlePoint(object) {
+  const dx = object.x2 - object.x1;
+  const dy = object.y2 - object.y1;
+  const length = Math.hypot(dx, dy) || 1;
+  return {
+    x: (object.x1 + object.x2) / 2 - dy / length * object.width / 2,
+    y: (object.y1 + object.y2) / 2 + dx / length * object.width / 2
+  };
+}
 function renderHandles() {
   const object = state.objects.find(item => item.id === selectedId && item.visible !== false && objectView(item) === state.activeView);
-  if (!object || state.tool !== 'select') return;
+  if (!object || state.tool !== 'select' || isObjectLocked(object)) return;
   if (object.type === 'line' || object.type === 'dimension') {
     addHandle(object.x1, object.y1, 'p1');
     addHandle(object.x2, object.y2, 'p2');
@@ -1502,6 +1521,27 @@ function renderHandles() {
     const end = polarPoint(object, object.r, (object.angle || 0) + Math.PI);
     addHandle(start.x, start.y, 'arcStart');
     addHandle(end.x, end.y, 'arcEnd');
+  }
+  if (object.type === 'ellipse' || object.type === 'ellipseArc') {
+    const rx = ellipseHandlePoint(object, 'ellipseRx');
+    const ry = ellipseHandlePoint(object, 'ellipseRy');
+    addHandle(rx.x, rx.y, 'ellipseRx');
+    addHandle(ry.x, ry.y, 'ellipseRy');
+  }
+  if (object.type === 'slot') {
+    const width = slotWidthHandlePoint(object);
+    addHandle(object.x1, object.y1, 'p1');
+    addHandle(object.x2, object.y2, 'p2');
+    addHandle(width.x, width.y, 'slotWidth');
+  }
+  if (object.type === 'polyline' || object.type === 'polygon') object.points.forEach((point, index) => addHandle(point.x, point.y, `point:${index}`));
+  if (object.type === 'text') addHandle(object.x, object.y, 'textAnchor');
+  if (object.type === 'angleDimension') {
+    addHandle(object.cx, object.cy, 'angleCenter');
+    const start = polarPoint({ x: object.cx, y: object.cy }, object.r, object.startAngle || 0);
+    const end = polarPoint({ x: object.cx, y: object.cy }, object.r, object.endAngle || 0);
+    addHandle(start.x, start.y, 'angleStart');
+    addHandle(end.x, end.y, 'angleEnd');
   }
 }
 function resizeRectFromCorner(object, kind, point) {
@@ -1521,6 +1561,11 @@ function resizeRectFromCorner(object, kind, point) {
   object.width = width;
   object.height = height;
 }
+function resizeEllipseFromHandle(object, kind, point) {
+  const local = rotatePoint(point, { x: object.x, y: object.y }, -(object.rotation || 0));
+  if (kind === 'ellipseRx') object.rx = Math.max(1, Math.abs(local.x - object.x));
+  if (kind === 'ellipseRy') object.ry = Math.max(1, Math.abs(local.y - object.y));
+}
 function moveHandle(point) {
   if (!draggingHandle) return;
   const { object, kind } = draggingHandle;
@@ -1534,6 +1579,19 @@ function moveHandle(point) {
     object.r = Math.max(1, distance({ x: object.x, y: object.y }, point));
     object.angle = Math.atan2(point.y - object.y, point.x - object.x) - (kind === 'arcEnd' ? Math.PI : 0);
   }
+  if ((object.type === 'ellipse' || object.type === 'ellipseArc') && (kind === 'ellipseRx' || kind === 'ellipseRy')) resizeEllipseFromHandle(object, kind, point);
+  if (object.type === 'slot' && kind === 'slotWidth') object.width = Math.max(1, distanceToLine(point, object.x1, object.y1, object.x2, object.y2) * 2);
+  if ((object.type === 'polyline' || object.type === 'polygon') && kind.startsWith('point:')) {
+    const index = Number(kind.split(':')[1]);
+    if (object.points[index]) { object.points[index].x = point.x; object.points[index].y = point.y; }
+  }
+  if (object.type === 'text' && kind === 'textAnchor') { object.x = point.x; object.y = point.y; }
+  if (object.type === 'angleDimension' && kind === 'angleCenter') { object.cx = point.x; object.cy = point.y; }
+  if (object.type === 'angleDimension' && (kind === 'angleStart' || kind === 'angleEnd')) {
+    object.r = Math.max(1, distance({ x: object.cx, y: object.cy }, point));
+    object[kind === 'angleStart' ? 'startAngle' : 'endAngle'] = Math.atan2(point.y - object.cy, point.x - object.cx);
+  }
+  syncLinkedDimensions(object);
   render();
 }
 function previewPolyline(currentPoint = null) {
@@ -1905,7 +1963,7 @@ function contextObjectAtPoint(point) {
       const py = Math.max(object.y, Math.min(local.y, object.y + object.height));
       return distance(local, { x: px, y: py });
     }
-    if (object.type === 'ellipse' || object.type === 'ellipseArc') return Math.abs(Math.hypot((point.x - object.x) / object.rx, (point.y - object.y) / object.ry) - 1) * Math.max(object.rx, object.ry);
+    if (object.type === 'ellipse' || object.type === 'ellipseArc') return ellipseEdgeDistance(point, object);
     return Math.abs(distance(point, { x: object.x, y: object.y }) - object.r);
   };
   const angleOnArc = (angle, start, end) => {
@@ -1923,8 +1981,7 @@ function contextObjectAtPoint(point) {
       return Math.abs(radius - object.r) <= threshold && angleOnArc(Math.atan2(point.y - object.y, point.x - object.x), object.angle || 0, (object.angle || 0) + Math.PI);
     }
     if (object.type === 'ellipse' || object.type === 'ellipseArc') {
-      const value = Math.hypot((point.x - object.x) / object.rx, (point.y - object.y) / object.ry);
-      return Math.abs(value - 1) * Math.max(object.rx, object.ry) <= threshold;
+      return ellipseEdgeDistance(point, object) <= threshold;
     }
     return false;
   });
@@ -2167,8 +2224,7 @@ function handlePointerDown(event) {
         return Math.abs(distance(point, { x: object.x, y: object.y }) - object.r) <= hitThreshold;
       }
       if (object.type === 'ellipse' || object.type === 'ellipseArc') {
-        const value = Math.hypot((point.x - object.x) / object.rx, (point.y - object.y) / object.ry);
-        return Math.abs(value - 1) * Math.max(object.rx, object.ry) <= hitThreshold;
+        return ellipseEdgeDistance(point, object) <= hitThreshold;
       }
       if (object.type === 'slot') return distanceToLine(point, object.x1, object.y1, object.x2, object.y2) <= object.width / 2 + hitThreshold;
       if (object.type === 'angleDimension') {
