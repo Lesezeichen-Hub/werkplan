@@ -12,7 +12,7 @@ const themeStorageKey = 'werkplan-theme';
 const libraryDbName = 'werkplan-library';
 const libraryStoreName = 'projects';
 const libraryDbVersion = 1;
-const autoSaveDelay = 15000;
+const autoSaveDelay = 3000;
 
 function preferredTheme() {
   const stored = localStorage.getItem(themeStorageKey);
