@@ -3,10 +3,16 @@ const drawingLayer = document.querySelector('#drawingLayer');
 const previewLayer = document.querySelector('#previewLayer');
 const emptyState = document.querySelector('#emptyState');
 const statusText = document.querySelector('#statusText');
+const pageMessage = document.querySelector('#pageMessage');
 const propertyPanel = document.querySelector('#propertyPanel');
 const fileInput = document.querySelector('#fileInput');
+const dbImportInput = document.querySelector('#dbImportInput');
 const documentTitle = document.title;
 const themeStorageKey = 'werkplan-theme';
+const libraryDbName = 'werkplan-library';
+const libraryStoreName = 'projects';
+const libraryDbVersion = 1;
+const autoSaveDelay = 15000;
 
 function preferredTheme() {
   const stored = localStorage.getItem(themeStorageKey);
@@ -56,6 +62,9 @@ state.layers = [
 ];
 state.activeLayer = 'contour';
 state.viewSettings = {};
+state.libraryProjectId = null;
+state.autoSaveTimer = null;
+state.autoSaving = false;
 let pointerStart = null;
 let selectedId = null;
 let selectedIds = new Set();
@@ -842,7 +851,9 @@ function commandDefinitions() {
     ...toolCommands, ...woodCommands, ...viewCommands, ...layerCommands,
     { label: 'Datei: Neues Projekt', keywords: 'neu leeren', run: () => document.querySelector('#newProject').click() },
     { label: 'Datei: Projekt laden', keywords: 'öffnen werkplan', run: () => fileInput.click() },
-    { label: 'Datei: Projekt speichern', keywords: 'speichern strg s', run: saveProject },
+    { label: 'Datei: Projekt exportieren', keywords: 'export werkplan datei sichern', run: saveProjectFile },
+    { label: 'Bibliothek: Projekt speichern', keywords: 'speichern strg s db lokal autosave', run: saveProject },
+    { label: 'Bibliothek: DB exportieren', keywords: 'backup datenbank sichern', run: exportLibraryDb },
     { label: 'Bearbeiten: Rückgängig', keywords: 'undo', run: undo },
     { label: 'Bearbeiten: Wiederholen', keywords: 'redo', run: redo },
     { label: 'Export: SVG', keywords: 'ausgabe', run: exportSheetSvg },
@@ -1315,6 +1326,7 @@ function restoreObjects(snapshot) { state.objects = JSON.parse(snapshot); select
 function setDirty(dirty = true) {
   state.dirty = dirty;
   document.title = `${dirty ? '* ' : ''}${documentTitle}`;
+  if (dirty) scheduleLibraryAutoSave();
 }
 function updateHistoryControls() {
   const undoButton = document.querySelector('#undoAction');
@@ -1342,7 +1354,16 @@ function selectObject(id, additive = false) {
   render();
   if (object) setStatus(selectedIds.size > 1 ? `${selectedIds.size} Objekte ausgewählt` : `${toolNames[object.type] || 'Objekt'} ausgewählt`);
 }
-function setStatus(message) { statusText.textContent = message; }
+function setStatus(message, type = '') {
+  statusText.textContent = message;
+  statusText.classList.toggle('status-success', type === 'success');
+  statusText.classList.toggle('status-error', type === 'error');
+  if (pageMessage) {
+    pageMessage.textContent = message;
+    pageMessage.className = `page-message ${type ? `page-message-${type}` : ''}`.trim();
+    pageMessage.hidden = type !== 'success';
+  }
+}
 function applyViewBox() {
   canvas.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
   const gridLayer = document.querySelector('#gridLayer');
@@ -2376,8 +2397,223 @@ function handlePointerUp(event) {
 }
 function setTool(tool) { state.tool = tool; document.querySelectorAll('.tool-button').forEach(button => button.classList.toggle('active', button.dataset.tool === tool || button.dataset.planned === tool)); document.querySelector('#toolHint').textContent = `${toolNames[tool] || woodToolNames[tool] || tool} aktiv`; document.querySelector('#lineLengthPanel').hidden = !(['line', 'dimension', 'rect', 'circle', 'semicircle', 'ellipse', 'ellipseArc', 'slot', 'polygon'].includes(tool) || isWoodTool(tool)); updateLiveAngle(null, null); clearPreview(); polylinePoints = []; }
 function exportSvg() { exportSheetSvg(); }
-function fileBaseName() { updateProjectMetaFromForm(); return (state.projectName || 'werkplan').replace(/[^a-z0-9_-]+/gi, '_'); }
+function fileBaseName() { updateProjectMetaFromForm(); return safeFileName(state.projectName); }
 function downloadBlob(blob, filename) { const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; link.click(); URL.revokeObjectURL(link.href); }
+function safeFileName(value, fallback = 'werkplan') { return (value || fallback).replace(/[^a-z0-9_-]+/gi, '_'); }
+function currentProjectData() {
+  updateDimensionStyleFromControls();
+  updateProjectMetaFromForm();
+  updateMaterialsFromForm();
+  saveActiveViewSettings();
+  return projectDataFromState({ ...state, enabledViews: enabledViews() });
+}
+function openLibraryDb() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error('IndexedDB nicht verfügbar')); return; }
+    const request = indexedDB.open(libraryDbName, libraryDbVersion);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(libraryStoreName)) {
+        const store = db.createObjectStore(libraryStoreName, { keyPath: 'id' });
+        store.createIndex('updatedAt', 'updatedAt');
+        store.createIndex('name', 'name');
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function libraryTransaction(mode, callback) {
+  const db = await openLibraryDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(libraryStoreName, mode);
+    const store = transaction.objectStore(libraryStoreName);
+    let result;
+    transaction.oncomplete = () => { db.close(); resolve(result); };
+    transaction.onerror = () => { db.close(); reject(transaction.error); };
+    transaction.onabort = () => { db.close(); reject(transaction.error); };
+    result = callback(store);
+  });
+}
+function requestResult(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function listLibraryProjects() {
+  return libraryTransaction('readonly', store => requestResult(store.getAll()));
+}
+async function putLibraryProject(record) {
+  await libraryTransaction('readwrite', store => { store.put(record); });
+}
+async function getLibraryProject(id) {
+  return libraryTransaction('readonly', store => requestResult(store.get(id)));
+}
+async function deleteLibraryProject(id) {
+  await libraryTransaction('readwrite', store => { store.delete(id); });
+}
+async function clearLibraryProjects() {
+  await libraryTransaction('readwrite', store => { store.clear(); });
+}
+function libraryRecordFromData(data, existingId = null) {
+  const now = new Date().toISOString();
+  const name = data.projectName || 'Projekt01';
+  const id = existingId || `project-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return {
+    id,
+    name,
+    nameKey: projectNameKey(name),
+    drawingNumber: data.drawingNumber || '',
+    objectCount: Array.isArray(data.objects) ? data.objects.length : 0,
+    createdAt: now,
+    updatedAt: now,
+    data
+  };
+}
+function projectNameKey(name) { return String(name || 'Projekt01').trim().toLocaleLowerCase('de-DE') || 'projekt01'; }
+function normalizedLibraryRecord(project) {
+  const data = project?.data || {};
+  const name = project?.name || data.projectName || 'Projekt01';
+  return { ...project, name, nameKey: projectNameKey(name), data: { ...data, projectName: data.projectName || name } };
+}
+async function findLibraryProjectsByName(name) {
+  const key = projectNameKey(name);
+  return (await listLibraryProjects()).filter(project => projectNameKey(project.name || project.data?.projectName) === key);
+}
+function updateLibraryStatus(text = null) {
+  const status = document.querySelector('#libraryStatus');
+  if (!status) return;
+  status.textContent = text || (state.libraryProjectId ? 'Auto-Save aktiv' : 'DB bereit');
+}
+async function openProjectLibraryPanel() {
+  await renderProjectLibrary();
+  const section = document.querySelector('#projectLibrarySection');
+  if (section) {
+    section.open = true;
+    section.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  setStatus('Bibliothek geöffnet: Zeichnung auswählen und Laden klicken');
+}
+function scheduleLibraryAutoSave() {
+  if (!state.libraryProjectId || state.autoSaving) return;
+  window.clearTimeout(state.autoSaveTimer);
+  state.autoSaveTimer = window.setTimeout(() => { if (state.libraryProjectId) saveProjectToLibrary({ auto: true }); }, autoSaveDelay);
+}
+async function renderProjectLibrary() {
+  const list = document.querySelector('#projectLibraryList');
+  if (!list) return;
+  try {
+    const projects = (await listLibraryProjects()).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    list.replaceChildren();
+    if (!projects.length) {
+      const empty = document.createElement('div');
+      empty.className = 'project-library-empty';
+      empty.textContent = 'Keine gespeicherten Zeichnungen. Speichern legt die Bibliothek an und speichert dieses Projekt.';
+      list.append(empty);
+      updateLibraryStatus();
+      return;
+    }
+    projects.forEach(project => {
+      const row = document.createElement('div');
+      row.className = 'project-library-row';
+      if (project.id === state.libraryProjectId) row.classList.add('active');
+      const updated = project.updatedAt ? new Date(project.updatedAt).toLocaleString('de-DE') : '-';
+      row.innerHTML = `<div><strong></strong><span></span></div><button type="button" data-action="load">Laden</button><button type="button" data-action="delete">Löschen</button>`;
+      row.querySelector('strong').textContent = project.name || 'Projekt';
+      row.querySelector('span').textContent = `${project.drawingNumber || '-'} · ${project.objectCount || 0} Objekt(e) · ${updated}`;
+      row.querySelector('[data-action="load"]').addEventListener('click', () => loadProjectFromLibrary(project.id));
+      row.querySelector('[data-action="delete"]').addEventListener('click', () => removeProjectFromLibrary(project.id, project.name));
+      list.append(row);
+    });
+    updateLibraryStatus();
+  } catch {
+    updateLibraryStatus('DB nicht verfügbar');
+  }
+}
+async function saveProjectToLibrary(options = {}) {
+  try {
+    state.autoSaving = true;
+    if (!options.auto) setStatus('Bibliothek wird vorbereitet');
+    const data = currentProjectData();
+    const sameNameProjects = await findLibraryProjectsByName(data.projectName);
+    const currentRecord = state.libraryProjectId ? await getLibraryProject(state.libraryProjectId) : null;
+    const existingByCurrentId = state.libraryProjectId ? sameNameProjects.find(project => project.id === state.libraryProjectId) : null;
+    const existingByName = existingByCurrentId || sameNameProjects[0] || currentRecord || null;
+    let record;
+    if (existingByName) {
+      record = { ...libraryRecordFromData(data, existingByName.id), createdAt: existingByName.createdAt || new Date().toISOString() };
+      state.libraryProjectId = existingByName.id;
+    } else {
+      record = libraryRecordFromData(data);
+      state.libraryProjectId = record.id;
+    }
+    await putLibraryProject(record);
+    if (currentRecord && currentRecord.id !== record.id) await deleteLibraryProject(currentRecord.id);
+    for (const duplicate of sameNameProjects.filter(project => project.id !== record.id)) await deleteLibraryProject(duplicate.id);
+    setDirty(false);
+    await renderProjectLibrary();
+    setStatus(options.auto ? 'Automatisch in Bibliothek gespeichert' : 'Erfolgreich in Bibliothek gespeichert', options.auto ? '' : 'success');
+  } catch {
+    setStatus('Bibliothek konnte nicht gespeichert werden', 'error');
+  } finally {
+    state.autoSaving = false;
+  }
+}
+async function loadProjectFromLibrary(id) {
+  try {
+    const record = await getLibraryProject(id);
+    if (!record?.data) { setStatus('Projekt nicht gefunden'); return; }
+    pushHistory();
+    loadProjectData(record.data);
+    state.libraryProjectId = id;
+    setDirty(false);
+    await renderProjectLibrary();
+    setStatus('Projekt aus Bibliothek geladen', 'success');
+  } catch {
+    setStatus('Projekt konnte nicht geladen werden', 'error');
+  }
+}
+async function removeProjectFromLibrary(id, name) {
+  if (!window.confirm(`Projekt „${name || 'Projekt'}“ aus der Bibliothek löschen?`)) return;
+  await deleteLibraryProject(id);
+  if (state.libraryProjectId === id) state.libraryProjectId = null;
+  await renderProjectLibrary();
+  setStatus('Projekt aus Bibliothek gelöscht');
+}
+async function exportLibraryDb() {
+  try {
+    const projects = await listLibraryProjects();
+    const dbDump = { app: 'Werkplan', type: 'project-library', version: 1, exportedAt: new Date().toISOString(), projects };
+    downloadBlob(new Blob([JSON.stringify(dbDump, null, 2)], { type: 'application/json' }), `werkplan_bibliothek_${new Date().toISOString().slice(0, 10)}.werkplan-db`);
+    setStatus('Bibliothek exportiert');
+  } catch {
+    setStatus('Bibliothek konnte nicht exportiert werden');
+  }
+}
+function importLibraryDb(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const dump = JSON.parse(reader.result);
+      const projects = Array.isArray(dump.projects) ? dump.projects : [];
+      if (!projects.length) throw new Error('empty');
+      if (!window.confirm('Aktuelle Projektbibliothek durch den Import ersetzen?')) return;
+      await clearLibraryProjects();
+      const uniqueProjects = new Map();
+      for (const project of projects) {
+        if (project?.id && project?.data) uniqueProjects.set(projectNameKey(project.name || project.data.projectName), normalizedLibraryRecord(project));
+      }
+      for (const project of uniqueProjects.values()) await putLibraryProject(project);
+      state.libraryProjectId = null;
+      await renderProjectLibrary();
+      setStatus('Bibliothek importiert');
+    } catch {
+      setStatus('DB-Import konnte nicht gelesen werden');
+    }
+  };
+  reader.readAsText(file);
+}
 function exportPoint(value, min, scale, offset = sheet.margin) { return offset + (value - min) / scale; }
 function renderExportObject(object, layer, bounds, exportScale, offsetX = sheet.margin, offsetY = sheet.margin) {
   const attrs = styleAttrs(object);
@@ -2712,76 +2948,80 @@ function projectDataFromState(projectState) {
   };
 }
 saveProject = function() {
-  updateDimensionStyleFromControls();
-  updateProjectMetaFromForm();
-  updateMaterialsFromForm();
-  saveActiveViewSettings();
-  const data = projectDataFromState({ ...state, enabledViews: enabledViews() });
+  saveProjectToLibrary();
+};
+function saveProjectFile() {
+  const data = currentProjectData();
   downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `${fileBaseName()}.werkplan`);
   setDirty(false);
-  setStatus('Projekt gespeichert');
-};
+  setStatus('Projekt als Datei gespeichert');
+}
+function loadProjectData(data) {
+  state.objects = Array.isArray(data.objects) ? data.objects : [];
+  state.materials = Array.isArray(data.materials) ? data.materials : [];
+  state.projectName = data.projectName || 'Projekt01';
+  state.drawingNumber = data.drawingNumber || 'TZ-001';
+  state.drawnBy = data.drawnBy || '';
+  state.projectDate = data.projectDate || new Date().toISOString().slice(0, 10);
+  document.querySelector('#projectName').value = state.projectName;
+  document.querySelector('#drawingNumber').value = state.drawingNumber;
+  document.querySelector('#drawnBy').value = state.drawnBy;
+  document.querySelector('#projectDate').value = state.projectDate;
+  renderMaterialList();
+  state.grid = data.settings?.grid ?? true;
+  state.snap = data.settings?.snap ?? true;
+  state.snapModes = { ...state.snapModes, ...(data.settings?.snapModes || {}) };
+  state.autoScale = data.settings?.autoScale ?? true;
+  state.sheetFormat = data.settings?.sheetFormat || 'A3';
+  state.sheetOrientation = data.settings?.sheetOrientation || 'landscape';
+  state.exportScaleMode = data.settings?.exportScaleMode === 'manual' ? 'manual' : 'auto';
+  state.exportScale = Number(data.settings?.exportScale) > 0 ? Number(data.settings.exportScale) : 10;
+  state.enabledViews = Array.isArray(data.settings?.enabledViews) ? data.settings.enabledViews.filter(view => viewNames[view]) : ['front'];
+  state.activeView = viewNames[data.settings?.activeView] ? data.settings.activeView : state.enabledViews[0];
+  state.viewReferences = data.settings?.viewReferences && typeof data.settings.viewReferences === 'object' ? data.settings.viewReferences : {};
+  if (Number(data.version) < 7) Object.values(state.viewReferences).forEach(reference => { reference.factor = 1; });
+  if (Number(data.version) < 8) state.viewReferences = {};
+  if (Number(data.version) < 10) state.objects.forEach(object => {
+    const factor = Number(object.referenceScale?.factor); const view = objectView(object);
+    if (!state.viewReferences[view] && !object.referenceScale?.copiedBetweenViews && Number.isFinite(factor) && factor > 0) state.viewReferences[view] = { factor, targetLength: object.referenceScale.targetLength, sourceObjectId: object.id, migrated: true };
+  });
+  if (Array.isArray(data.settings?.layers)) state.layers = data.settings.layers.filter(layer => layer.id !== 'guide');
+  if (!state.layers.length) state.layers = [{ id: 'contour', name: 'Kontur', visible: true, locked: false, printable: true }];
+  state.objects.forEach(object => { if (object.layer === 'guide') object.layer = 'contour'; });
+  state.activeLayer = data.settings?.activeLayer === 'guide' ? 'contour' : data.settings?.activeLayer || state.layers[0].id;
+  if (!state.layers.some(layer => layer.id === state.activeLayer)) state.activeLayer = state.layers[0].id;
+  state.viewSettings = data.settings?.viewSettings && typeof data.settings.viewSettings === 'object' ? data.settings.viewSettings : {};
+  if (Number(data.version) < 12) Object.entries(state.viewReferences).forEach(([view, reference]) => {
+    const factor = Number(reference?.factor); const setting = state.viewSettings[view];
+    if (setting && Number.isFinite(factor) && factor > 0) { setting.scale = (Number(setting.scale) || 20) * factor; setting.autoScale = false; }
+  });
+  document.querySelector('#sheetFormat').value = state.sheetFormat;
+  document.querySelector('#sheetOrientation').value = state.sheetOrientation;
+  syncViewControls();
+  renderLayerControls();
+  syncExportScaleControls();
+  state.dimensionStyle = data.settings?.dimensionStyle || state.dimensionStyle;
+  syncDimensionStyleControls();
+  state.scale = Number(data.settings?.scale) > 0 ? Number(data.settings.scale) : 20;
+  const legacyZoom = Number(data.settings?.zoom) > 0 ? Number(data.settings.zoom) : 1;
+  if (!state.viewSettings[state.activeView]) state.viewSettings[state.activeView] = { scale: state.scale, autoScale: state.autoScale, viewBox: { x: 0, y: 0, width: 1200 / legacyZoom, height: 760 / legacyZoom }, layerVisibility: {}, exportX: null, exportY: null };
+  loadActiveViewSettings();
+  syncScaleControls();
+  document.querySelector('#gridToggle').checked = state.grid;
+  document.querySelector('#snapToggle').checked = state.snap;
+  document.querySelectorAll('.snap-mode').forEach(input => { input.checked = state.snapModes[input.dataset.snapMode] !== false; });
+  selectedId = null; selectedIds.clear();
+  render();
+}
 loadProject = function(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
       pushHistory();
-      state.objects = Array.isArray(data.objects) ? data.objects : [];
-      state.materials = Array.isArray(data.materials) ? data.materials : [];
-      state.projectName = data.projectName || 'Projekt01';
-      state.drawingNumber = data.drawingNumber || 'TZ-001';
-      state.drawnBy = data.drawnBy || '';
-      state.projectDate = data.projectDate || new Date().toISOString().slice(0, 10);
-      document.querySelector('#projectName').value = state.projectName;
-      document.querySelector('#drawingNumber').value = state.drawingNumber;
-      document.querySelector('#drawnBy').value = state.drawnBy;
-      document.querySelector('#projectDate').value = state.projectDate;
-      renderMaterialList();
-      state.grid = data.settings?.grid ?? true;
-      state.snap = data.settings?.snap ?? true;
-      state.snapModes = { ...state.snapModes, ...(data.settings?.snapModes || {}) };
-      state.autoScale = data.settings?.autoScale ?? true;
-      state.sheetFormat = data.settings?.sheetFormat || 'A3';
-      state.sheetOrientation = data.settings?.sheetOrientation || 'landscape';
-      state.exportScaleMode = data.settings?.exportScaleMode === 'manual' ? 'manual' : 'auto';
-      state.exportScale = Number(data.settings?.exportScale) > 0 ? Number(data.settings.exportScale) : 10;
-      state.enabledViews = Array.isArray(data.settings?.enabledViews) ? data.settings.enabledViews.filter(view => viewNames[view]) : ['front'];
-      state.activeView = viewNames[data.settings?.activeView] ? data.settings.activeView : state.enabledViews[0];
-      state.viewReferences = data.settings?.viewReferences && typeof data.settings.viewReferences === 'object' ? data.settings.viewReferences : {};
-      if (Number(data.version) < 7) Object.values(state.viewReferences).forEach(reference => { reference.factor = 1; });
-      if (Number(data.version) < 8) state.viewReferences = {};
-      if (Number(data.version) < 10) state.objects.forEach(object => {
-        const factor = Number(object.referenceScale?.factor); const view = objectView(object);
-        if (!state.viewReferences[view] && !object.referenceScale?.copiedBetweenViews && Number.isFinite(factor) && factor > 0) state.viewReferences[view] = { factor, targetLength: object.referenceScale.targetLength, sourceObjectId: object.id, migrated: true };
-      });
-      if (Array.isArray(data.settings?.layers)) state.layers = data.settings.layers.filter(layer => layer.id !== 'guide');
-      if (!state.layers.length) state.layers = [{ id: 'contour', name: 'Kontur', visible: true, locked: false, printable: true }];
-      state.objects.forEach(object => { if (object.layer === 'guide') object.layer = 'contour'; });
-      state.activeLayer = data.settings?.activeLayer === 'guide' ? 'contour' : data.settings?.activeLayer || state.layers[0].id;
-      if (!state.layers.some(layer => layer.id === state.activeLayer)) state.activeLayer = state.layers[0].id;
-      state.viewSettings = data.settings?.viewSettings && typeof data.settings.viewSettings === 'object' ? data.settings.viewSettings : {};
-      if (Number(data.version) < 12) Object.entries(state.viewReferences).forEach(([view, reference]) => {
-        const factor = Number(reference?.factor); const setting = state.viewSettings[view];
-        if (setting && Number.isFinite(factor) && factor > 0) { setting.scale = (Number(setting.scale) || 20) * factor; setting.autoScale = false; }
-      });
-      document.querySelector('#sheetFormat').value = state.sheetFormat;
-      document.querySelector('#sheetOrientation').value = state.sheetOrientation;
-      syncViewControls();
-      renderLayerControls();
-      syncExportScaleControls();
-      state.dimensionStyle = data.settings?.dimensionStyle || state.dimensionStyle;
-      syncDimensionStyleControls();
-      state.scale = Number(data.settings?.scale) > 0 ? Number(data.settings.scale) : 20;
-      const legacyZoom = Number(data.settings?.zoom) > 0 ? Number(data.settings.zoom) : 1;
-      if (!state.viewSettings[state.activeView]) state.viewSettings[state.activeView] = { scale: state.scale, autoScale: state.autoScale, viewBox: { x: 0, y: 0, width: 1200 / legacyZoom, height: 760 / legacyZoom }, layerVisibility: {}, exportX: null, exportY: null };
-      loadActiveViewSettings();
-      syncScaleControls();
-      document.querySelector('#gridToggle').checked = state.grid;
-      document.querySelector('#snapToggle').checked = state.snap;
-      document.querySelectorAll('.snap-mode').forEach(input => { input.checked = state.snapModes[input.dataset.snapMode] !== false; });
-      selectedId = null; selectedIds.clear();
-      render();
+      loadProjectData(data);
+      state.libraryProjectId = null;
+      renderProjectLibrary();
       setDirty(false);
       setStatus('Projekt geladen');
     } catch {
@@ -2837,13 +3077,19 @@ document.querySelectorAll('.snap-mode').forEach(input => input.addEventListener(
 document.querySelector('#addMaterialRow')?.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); updateMaterialsFromForm(); state.materials.push(defaultMaterialRow()); setDirty(); renderMaterialList(); setStatus('Materialposition hinzugefügt'); });
 document.querySelector('#activeLayer')?.addEventListener('change', event => { state.activeLayer = event.target.value; setDirty(); renderLayerControls(); });
 ['#viewExportX', '#viewExportY'].forEach((selector, index) => document.querySelector(selector)?.addEventListener('change', event => { const value = event.target.value === '' ? null : Number(event.target.value); ensureViewSetting()[index === 0 ? 'exportX' : 'exportY'] = Number.isFinite(value) ? value : null; setDirty(); renderProjectWarnings(); }));
-document.querySelector('#newProject').addEventListener('click', () => { if ((state.objects.length || state.materials.length) && !window.confirm('Neue Zeichnung beginnen und aktuelle Arbeit verwerfen?')) return; state.objects = []; state.materials = []; state.history = []; state.redo = []; state.projectName = 'Projekt01'; state.enabledViews = ['front']; state.activeView = 'front'; state.viewReferences = {}; state.viewSettings = {}; state.exportScaleMode = 'auto'; state.exportScale = 10; state.layers.forEach(layer => { layer.visible = true; layer.locked = false; layer.printable = true; }); state.activeLayer = 'contour'; document.querySelector('#projectName').value = state.projectName; loadActiveViewSettings(); syncViewControls(); syncExportScaleControls(); renderLayerControls(); renderMaterialList(); selectedId = null; selectedIds.clear(); render(); setDirty(false); setStatus('Neue Zeichnung'); });
+document.querySelector('#newProject').addEventListener('click', () => { if ((state.objects.length || state.materials.length) && !window.confirm('Neue Zeichnung beginnen und aktuelle Arbeit verwerfen?')) return; state.objects = []; state.materials = []; state.history = []; state.redo = []; state.projectName = 'Projekt01'; state.libraryProjectId = null; state.enabledViews = ['front']; state.activeView = 'front'; state.viewReferences = {}; state.viewSettings = {}; state.exportScaleMode = 'auto'; state.exportScale = 10; state.layers.forEach(layer => { layer.visible = true; layer.locked = false; layer.printable = true; }); state.activeLayer = 'contour'; document.querySelector('#projectName').value = state.projectName; loadActiveViewSettings(); syncViewControls(); syncExportScaleControls(); renderLayerControls(); renderMaterialList(); renderProjectLibrary(); selectedId = null; selectedIds.clear(); render(); setDirty(false); setStatus('Neue Zeichnung'); });
 document.querySelector('#saveProject').addEventListener('click', saveProject);
+document.querySelector('#openProjectLibrary')?.addEventListener('click', openProjectLibraryPanel);
+document.querySelector('#exportProjectFile')?.addEventListener('click', saveProjectFile);
+document.querySelector('#saveProjectToLibrary')?.addEventListener('click', () => saveProjectToLibrary());
+document.querySelector('#exportLibraryDb')?.addEventListener('click', exportLibraryDb);
+document.querySelector('#importLibraryDb')?.addEventListener('click', () => dbImportInput?.click());
 document.querySelector('#themeToggle').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
 document.querySelector('#openProject').addEventListener('click', () => fileInput.click());
 document.querySelector('#undoAction')?.addEventListener('click', undo);
 document.querySelector('#redoAction')?.addEventListener('click', redo);
 fileInput.addEventListener('change', event => { if (event.target.files[0]) loadProject(event.target.files[0]); event.target.value = ''; });
+dbImportInput?.addEventListener('change', event => { if (event.target.files[0]) importLibraryDb(event.target.files[0]); event.target.value = ''; });
 document.querySelector('#exportSvg').addEventListener('click', exportSvg);
 document.querySelector('#exportSheetSvg').addEventListener('click', exportSheetSvg);
 document.querySelector('#exportPng').addEventListener('click', exportPng);
@@ -2867,6 +3113,7 @@ renderLayerControls();
 syncViewSettingControls();
 syncExportScaleControls();
 syncDimensionStyleControls();
+renderProjectLibrary();
 renderMaterialList();
 syncScaleControls();
 applyViewBox();

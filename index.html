@@ -12,6 +12,8 @@
     <div class="file-actions">
       <button id="newProject" class="text-button">Neu</button>
       <button id="openProject" class="text-button">Laden</button>
+      <button id="openProjectLibrary" class="text-button">Bibliothek</button>
+      <button id="exportProjectFile" class="text-button">Datei exportieren</button>
       <button id="undoAction" class="text-button" title="Rückgängig">Undo</button>
       <button id="redoAction" class="text-button" title="Wiederholen">Redo</button>
       <button id="saveProject" class="primary-button">Speichern</button>
@@ -21,8 +23,10 @@
       <button id="exportSheetSvg" class="icon-button export-button" title="Zeichnung als SVG exportieren">SVG</button>
       <button id="exportPdf" class="icon-button export-button" title="Zeichnung als PDF exportieren">PDF</button>
       <input id="fileInput" type="file" accept=".werkplan,.json,application/json" hidden>
+      <input id="dbImportInput" type="file" accept=".werkplan-db,.json,application/json" hidden>
     </div>
   </header>
+  <div id="pageMessage" class="page-message" role="status" aria-live="polite" hidden></div>
 
   <main class="workspace">
     <aside class="sidebar left-panel">
@@ -240,13 +244,23 @@
         <div id="objectList" class="object-list"></div>
       </details>
 
-      <details class="accordion-section" open>
+      <details id="projectLibrarySection" class="accordion-section" open>
         <summary class="panel-heading"><span>Projektdetails</span></summary>
         <label class="field-label" for="projectName">Name</label><input id="projectName" class="text-input" value="Projekt01">
         <label class="field-label" for="drawingNumber">Zeichnungsnummer</label><input id="drawingNumber" class="text-input" value="TZ-001">
         <label class="field-label" for="drawnBy">Bearbeiter</label><input id="drawnBy" class="text-input" value="">
         <label class="field-label" for="projectDate">Datum</label><input id="projectDate" class="text-input" type="date">
         <div class="project-stats"><div><span>Objekte</span><strong id="objectCount">0</strong></div><div><span>Einheit</span><strong>mm / m</strong></div></div>
+      </details>
+
+      <details class="accordion-section" open>
+        <summary class="panel-heading"><span>Bibliothek</span><span id="libraryStatus" class="muted">Lokal</span></summary>
+        <button id="saveProjectToLibrary" type="button" class="copy-button">In Bibliothek speichern</button>
+        <div class="library-actions">
+          <button id="exportLibraryDb" type="button" class="copy-button">DB exportieren</button>
+          <button id="importLibraryDb" type="button" class="copy-button">DB importieren</button>
+        </div>
+        <div id="projectLibraryList" class="project-library-list"></div>
       </details>
 
       <details class="accordion-section">

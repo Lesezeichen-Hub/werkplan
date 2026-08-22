@@ -24,7 +24,7 @@ Die automatischen Kernfunktionstests lassen sich mit Node.js aus dem Projektordn
 - Objekt- und achsenbezogene Richtmaße ohne Veränderung der Geometrie
 - Ebenen, Mehrfachauswahl, Gruppen und Objektinspektor
 - Materialliste mit Objektverknüpfungen
-- Speicherung als `.werkplan` sowie Export als SVG, PNG und PDF
+- Speicherung als `.werkplan`, lokale Projektbibliothek mit Auto-Save sowie Export als SVG, PNG und PDF
 
 ## Werkzeuge
 
@@ -177,7 +177,9 @@ Die Zahl im Abschnittskopf zeigt die Anzahl gefundener Probleme. Ein Klick auf e
 
 ## Speichern und Export
 
-Ein Stern vor dem Fenstertitel zeigt ungespeicherte Änderungen an. Mit `Strg + S` oder **Speichern** wird eine `.werkplan`-Datei erzeugt. Das aktuelle Dateiformat ist Version 13 und unterstützt Ebenen, Gruppen, neue Grundformen, getrennte Ansichtseinstellungen, sprungfreie kalibrierte Koordinatensysteme sowie gespeicherte Exportmaßstäbe.
+Ein Stern vor dem Fenstertitel zeigt ungespeicherte Änderungen an. Mit `Strg + S` oder **Speichern** wird das aktuelle Projekt in der lokalen Bibliothek gespeichert; falls noch keine Datenbank existiert, wird sie dabei angelegt. Das aktuelle Dateiformat ist Version 13 und unterstützt Ebenen, Gruppen, neue Grundformen, getrennte Ansichtseinstellungen, sprungfreie kalibrierte Koordinatensysteme sowie gespeicherte Exportmaßstäbe.
+
+**Laden** importiert eine einzelne `.werkplan`-Datei in die aktuelle Arbeitsfläche. **Bibliothek** öffnet die lokale Auswahlliste; vorhandene Zeichnungen stehen dort mit einem **Laden**-Button bereit. Ist die Liste leer, wurde noch keine Zeichnung gespeichert. Projektnamen sind in der Bibliothek eindeutig: Speichern mit einem bereits vorhandenen Namen überschreibt diesen Eintrag und zeigt oben eine grüne Erfolgsmeldung. **Datei exportieren** schreibt das aktuelle Projekt als einzelne `.werkplan`-Datei heraus, zum Beispiel um ein Bibliotheksprojekt weiterzugeben. Sobald ein Projekt in der Bibliothek gespeichert oder aus der Bibliothek geladen wurde, speichert Werkplan weitere Änderungen automatisch nach kurzer Wartezeit wieder in denselben Bibliothekseintrag. Im rechten Bereich **Bibliothek** lassen sich Projekte laden oder löschen. **DB exportieren** erzeugt eine Sicherungsdatei der kompletten Bibliothek, **DB importieren** ersetzt die lokale Bibliothek durch eine solche Sicherung. Die Bibliothek ist lokal an den verwendeten Browser und das geöffnete Verzeichnis gebunden.
 
 Beim Export werden nicht druckbare Ebenen ausgelassen. Die ersten sechs Materialpositionen erscheinen auf dem Zeichnungsblatt; alle weiteren Positionen verteilt Werkplan automatisch auf zusätzliche PDF-Seiten.
 
