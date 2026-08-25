@@ -898,7 +898,7 @@ function materialTableHeight() {
 function exportDrawingAreaHeight() {
   const titleTop = sheet.height - sheet.margin - sheet.titleHeight;
   const reservedMaterial = materialTableHeight() ? materialTableHeight() + 32 : 0;
-  return Math.max(120, titleTop - sheet.margin - 16 - reservedMaterial);
+  return Math.max(120, titleTop - sheet.margin - 6 - reservedMaterial);
 }
 function exportPaddingMm(rawBounds, calibrationFactor = 1, exportScale = null) {
   if (!rawBounds) return 0;
