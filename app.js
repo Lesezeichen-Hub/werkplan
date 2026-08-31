@@ -85,6 +85,7 @@ let panStart = null;
 let spacePressed = false;
 let selectionBoxStart = null;
 let commandSelectionIndex = 0;
+let pageMessageTimer = null;
 
 const svgNS = 'http://www.w3.org/2000/svg';
 const snapSize = 10;
@@ -1359,9 +1360,13 @@ function setStatus(message, type = '') {
   statusText.classList.toggle('status-success', type === 'success');
   statusText.classList.toggle('status-error', type === 'error');
   if (pageMessage) {
+    clearTimeout(pageMessageTimer);
     pageMessage.textContent = message;
     pageMessage.className = `page-message ${type ? `page-message-${type}` : ''}`.trim();
     pageMessage.hidden = type !== 'success';
+    if (type === 'success') {
+      pageMessageTimer = setTimeout(() => { pageMessage.hidden = true; }, 3000);
+    }
   }
 }
 function applyViewBox() {
