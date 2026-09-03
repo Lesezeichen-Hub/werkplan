@@ -16,6 +16,12 @@ Die automatischen Kernfunktionstests lassen sich mit Node.js aus dem Projektordn
 
 `node --test tests/app.test.js`
 
+## Versionierung
+
+Die aktuelle Modulversion steht in `version.json`. Der Lesezeichen-Hub liest diese Datei direkt über `raw.githubusercontent.com`; dafür wird keine GitHub-REST-API-Abfrage und kein API-Kontingent benötigt.
+
+Die festgelegte Ausgangsversion ist `1.0.0`. Beim Veröffentlichen eines GitHub-Releases aktualisiert `.github/workflows/publish-version.yml` das Manifest auf `main`. Dadurch kann der Hub die installierte Modulversion speichern und spätere Updates anzeigen.
+
 ## Funktionsübersicht
 
 - Technische Grundformen, Texte und Bemaßungen

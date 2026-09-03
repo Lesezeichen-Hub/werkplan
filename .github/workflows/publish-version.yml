@@ -1,0 +1,27 @@
+name: Publish Version Manifest
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  publish-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Publish version manifest
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          printf '{\n  "version": "%s",\n  "release_url": "https://github.com/%s/releases/tag/%s"\n}\n' "$TAG" "$REPOSITORY" "$TAG" > version.json
+          git add version.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Publish version manifest for $TAG"
+          git push origin HEAD:main
