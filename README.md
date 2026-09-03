@@ -145,6 +145,8 @@ Für ein Objekt in einer anderen Arbeitsansicht zuerst oberhalb der Zeichenfläc
 
 - **Mausrad**: Um die Cursorposition zoomen
 - **Mittlere Maustaste ziehen**: Zeichenfläche verschieben
+- **Linke Maustaste auf leerer Fläche ziehen**: Zeichenfläche verschieben
+- **Shift oder Strg und linke Maustaste auf leerer Fläche ziehen**: Auswahlrahmen aufziehen
 - **Leertaste und linke Maustaste ziehen**: Zeichenfläche verschieben
 - **Alles**: Alle Objekte der aktiven Ansicht einpassen
 - **Auswahl**: Das ausgewählte Objekt einpassen

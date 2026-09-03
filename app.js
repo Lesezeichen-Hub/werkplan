@@ -2268,10 +2268,16 @@ function handlePointerDown(event) {
       canvas.setPointerCapture?.(event.pointerId);
       startDraggingObject(hitObject, point, event.shiftKey || event.ctrlKey);
     } else {
-      if (!event.shiftKey && !event.ctrlKey) { selectedId = null; selectedIds.clear(); }
-      draggingObject = null;
-      dragChanged = false;
-      selectionBoxStart = point;
+      if (event.shiftKey || event.ctrlKey) {
+        draggingObject = null;
+        dragChanged = false;
+        selectionBoxStart = point;
+      } else {
+        selectedId = null;
+        selectedIds.clear();
+        panStart = { clientX: event.clientX, clientY: event.clientY, viewX: viewBox.x, viewY: viewBox.y };
+        canvas.classList.add('panning');
+      }
       canvas.setPointerCapture?.(event.pointerId);
       render();
     }
@@ -2350,6 +2356,12 @@ function handlePointerMove(event) {
   if (isWoodTool() && state.tool !== 'freihandkurve') { clearPreview(); createWoodGeometry(pointerStart, point).filter(Boolean).forEach(object => renderObject(object, previewLayer)); }
 }
 function handlePointerUp(event) {
+  if (panStart) {
+    canvas.releasePointerCapture?.(event.pointerId);
+    panStart = null;
+    canvas.classList.remove('panning');
+    return;
+  }
   if (selectionBoxStart) {
     const end = eventPoint(event);
     const box = { minX: Math.min(selectionBoxStart.x, end.x), minY: Math.min(selectionBoxStart.y, end.y), maxX: Math.max(selectionBoxStart.x, end.x), maxY: Math.max(selectionBoxStart.y, end.y) };
@@ -2361,12 +2373,6 @@ function handlePointerUp(event) {
     selectedInBox.forEach(object => selectedIds.add(object.id));
     selectedId = [...selectedIds].at(-1) || null;
     selectionBoxStart = null; clearPreview(); canvas.releasePointerCapture?.(event.pointerId); render(); setStatus(`${selectedIds.size} Objekt(e) ausgewählt`); return;
-  }
-  if (panStart) {
-    canvas.releasePointerCapture?.(event.pointerId);
-    panStart = null;
-    canvas.classList.remove('panning');
-    return;
   }
   if (draggingHandle) {
     canvas.releasePointerCapture?.(event.pointerId);
