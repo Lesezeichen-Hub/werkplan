@@ -41,13 +41,6 @@ function createProfileGeometry(start, end) {
   return [generatedStyle('line', { x1: left, y1: axisY, x2: right, y2: axisY, style: 'center', layer: 'axis' }), generatedStyle('polyline', { points: upper }), generatedStyle('polyline', { points: lower }), generatedStyle('line', { x1: left, y1: upper[0].y, x2: left, y2: lower[0].y, style: 'dashed' }), generatedStyle('line', { x1: right, y1: upper.at(-1).y, x2: right, y2: lower.at(-1).y, style: 'dashed' })];
 }
 function createGeneratedGeometry(start, end) { return state.tool === 'profilEditor' ? createProfileGeometry(start, end) : isHardwareTool() ? createHardwareGeometry(start, end) : createWoodGeometry(start, end); }
-function updateBlankCalculation() {
-  const diameter = Number(document.querySelector('#blankDiameter')?.value); const length = Number(document.querySelector('#blankLength')?.value); const density = Number(document.querySelector('#blankDensity')?.value); const output = document.querySelector('#blankCalculation');
-  if (!output) return;
-  if (![diameter, length, density].every(value => Number.isFinite(value) && value > 0)) { output.textContent = 'Gültige Maße eingeben.'; return; }
-  const volume = Math.PI * (diameter / 2000) ** 2 * (length / 1000);
-  output.textContent = `Zylinderrohling: ${(volume * 1000).toFixed(2).replace('.', ',')} l · ${(volume * density).toFixed(2).replace('.', ',')} kg`;
-}
 function explodeSelectedGroups() {
   const groups = [...new Set(selectedObjects().map(object => object.groupId).filter(Boolean))];
   if (!groups.length) { setStatus('Eine zusammengehörige Werkzeuggruppe auswählen'); return; }

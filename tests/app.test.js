@@ -164,7 +164,6 @@ test('template export is selectable and produces tiled 1:1 pages', () => {
   assert.match(appSource, /function buildTemplateSvgPages\(objects\)/);
   assert.match(appSource, /function exportTemplatePdf\(\)/);
   assert.match(appSource, /Werkplan Schablone 1:1/);
-  assert.match(appSource, /function updateBlankCalculation\(\)/);
 });
 
 test('help dialog is searchable and documents specialist workflows', () => {
@@ -173,11 +172,10 @@ test('help dialog is searchable and documents specialist workflows', () => {
   assert.match(indexSource, /data-help-section/);
   assert.match(indexSource, /Symmetrieachse und Achsenspiegelung/);
   assert.match(indexSource, /Beschlagbibliothek/);
-  assert.match(indexSource, /Rohling und Materialliste/);
+  assert.match(indexSource, /Materialliste/);
   assert.match(indexSource, /Ausgabe und Schablonen/);
   assert.match(indexSource, /FAQ: Häufige Fragen/);
   assert.match(indexSource, /Wie erstelle ich gespiegelte Objekte/);
-  assert.match(indexSource, /Wie berechne ich das Rohmaß für einen Drechselrohling/);
   assert.match(indexSource, /Wie exportiere ich eine Schablone im Maßstab 1:1/);
   assert.match(appSource, /function filterHelp\(\)/);
   assert.match(appSource, /querySelector\('#helpSearch'\)\?\.addEventListener\('input', filterHelp\)/);
