@@ -144,7 +144,7 @@ test('hardware catalog defines unique tools and generated workflow hooks', () =>
   assert.ok(definition, 'hardware catalog must exist');
   const catalog = eval(`(${definition[1]})`);
   assert.equal(Object.keys(catalog).length, new Set(Object.keys(catalog)).size);
-  assert.deepEqual(Object.keys(catalog).sort(), ['bodentraeger', 'confirmat', 'euroschraube', 'exzenter', 'klavierband', 'magnetverschluss', 'moebelverbinder', 'profilEditor', 'schubladenauszug', 'topfband', 'winkel']);
+  assert.deepEqual(Object.keys(catalog).sort(), ['bodentraeger', 'confirmat', 'exzenter', 'magnetverschluss', 'moebelverbinder', 'profilEditor', 'schubladenauszug', 'topfband', 'winkel']);
   assert.match(appSource, /function createHardwareGeometry\(start, end\)/);
   assert.match(appSource, /function createProfileGeometry\(start, end\)/);
   assert.match(appSource, /function explodeSelectedGroups\(\)/);

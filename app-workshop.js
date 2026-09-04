@@ -1,7 +1,7 @@
 const hardwareToolNames = {
-  topfband: 'Topfband 35', klavierband: 'Klavierband', schubladenauszug: 'Schubladenauszug', bodentraeger: 'Bodenträger',
+  topfband: 'Topfband 35', schubladenauszug: 'Schubladenauszug', bodentraeger: 'Bodenträger',
   exzenter: 'Exzenterverbinder', moebelverbinder: 'Möbelverbinder', winkel: 'Winkelverbinder', confirmat: 'Confirmat',
-  euroschraube: 'Euroschraube', magnetverschluss: 'Magnetverschluss', profilEditor: 'Profil-Editor'
+  magnetverschluss: 'Magnetverschluss', profilEditor: 'Profil-Editor'
 };
 
 function isHardwareTool(tool = state.tool) { return Object.hasOwn(hardwareToolNames, tool); }
@@ -25,13 +25,12 @@ function createHardwareGeometry(start, end) {
   const circle = (x, y, r) => generatedStyle('circle', { x, y, r });
   const r = Math.max(5, Math.min(width, height) * .1);
   if (state.tool === 'topfband') return [circle(midX, midY, Math.max(17.5, r * 1.75)), circle(midX - width * .22, midY, r * .42), circle(midX + width * .22, midY, r * .42), line(left, midY, right, midY, 'center')];
-  if (state.tool === 'klavierband') return [rect(left, top + height * .32, width, height * .36), line(left, midY, right, midY, 'center'), ...Array.from({ length: Math.max(3, Math.min(12, Math.round(width / Math.max(30, r * 4)))) }, (_, index, entries) => circle(left + width * (index + .5) / entries.length, midY, r * .42))];
   if (state.tool === 'schubladenauszug') return [rect(left, top + height * .25, width, height * .5), line(left + width * .1, midY, right - width * .1, midY, 'center'), ...[.16, .5, .84].map(t => circle(left + width * t, midY, r * .48))];
   if (state.tool === 'bodentraeger') return [circle(midX, midY, Math.max(2.5, r * .45)), line(midX - r * 2, midY, midX + r * 2, midY, 'center'), line(midX, midY - r * 2, midX, midY + r * 2, 'center')];
   if (state.tool === 'exzenter') return [circle(midX, midY, Math.max(7.5, r)), circle(midX, midY, Math.max(2, r * .28)), line(midX - r, midY, midX + r, midY, 'dashed')];
   if (state.tool === 'moebelverbinder') return [circle(left + width * .27, midY, r), circle(right - width * .27, midY, r), line(left + width * .27, midY, right - width * .27, midY, 'center'), rect(midX - r * .5, midY - r * .5, r, r)];
   if (state.tool === 'winkel') return [rect(left, top, width * .2, height), rect(left, bottom - height * .2, width, height * .2), circle(left + width * .1, top + height * .28, r * .42), circle(left + width * .38, bottom - height * .1, r * .42)];
-  if (state.tool === 'confirmat' || state.tool === 'euroschraube') return [circle(midX, midY, state.tool === 'confirmat' ? Math.max(3.5, r * .55) : Math.max(2.5, r * .4)), line(midX - r * 1.6, midY, midX + r * 1.6, midY, 'center'), line(midX, midY - r * 1.6, midX, midY + r * 1.6, 'center')];
+  if (state.tool === 'confirmat') return [circle(midX, midY, Math.max(3.5, r * .55)), line(midX - r * 1.6, midY, midX + r * 1.6, midY, 'center'), line(midX, midY - r * 1.6, midX, midY + r * 1.6, 'center')];
   if (state.tool === 'magnetverschluss') return [rect(left + width * .2, top + height * .25, width * .6, height * .5), circle(midX, midY, r * .5), line(midX, top, midX, bottom, 'center')];
   return [];
 }
