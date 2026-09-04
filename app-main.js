@@ -1,0 +1,87 @@
+﻿document.querySelectorAll('.tool-category').forEach(button => button.addEventListener('click', () => {
+  const category = button.dataset.category;
+  document.querySelectorAll('.tool-category').forEach(item => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-selected', String(active)); });
+  document.querySelectorAll('.tool-category-panel').forEach(panel => { panel.hidden = panel.dataset.categoryPanel !== category; });
+}));
+document.querySelectorAll('.tool-button').forEach(button => button.addEventListener('click', () => {
+  if (button.dataset.planned) { setTool(button.dataset.planned); return; }
+  setTool(button.dataset.tool);
+}));
+document.querySelectorAll('.style-button').forEach(button => button.addEventListener('click', () => { state.style = button.dataset.style; setDirty(); document.querySelectorAll('.style-button').forEach(item => item.classList.toggle('active', item === button)); }));
+document.querySelector('#strokeWidth').addEventListener('input', event => { state.strokeWidth = Number(event.target.value); setDirty(); document.querySelector('#strokeOutput').textContent = `${state.strokeWidth.toFixed(2).replace('.', ',')} mm`; });
+document.querySelector('#strokeColor').addEventListener('input', event => { state.strokeColor = event.target.value; setDirty(); });
+['#dimensionEndStyle', '#dimensionTextSize', '#dimensionDefaultOffset', '#dimensionUnit', '#dimensionDecimals'].forEach(selector => {
+  document.querySelector(selector)?.addEventListener('input', () => { updateDimensionStyleFromControls(); setDirty(); render(); });
+  document.querySelector(selector)?.addEventListener('change', () => { updateDimensionStyleFromControls(); render(); });
+});
+document.querySelector('#scaleSelect').addEventListener('change', event => { if (event.target.value === 'custom') { document.querySelector('#customScaleWrap').hidden = false; document.querySelector('#customScale').focus(); } else setScale(event.target.value); });
+document.querySelector('#scaleSelect').addEventListener('change', event => { if (event.target.value === 'auto') { state.autoScale = true; ensureViewSetting().autoScale = true; setDirty(); syncScaleControls(); render(); setStatus('Massstab automatisch berechnet'); } });
+document.querySelector('#customScale').addEventListener('change', event => setScale(event.target.value));
+document.querySelector('#sheetFormat')?.addEventListener('change', event => { state.sheetFormat = event.target.value; setDirty(); render(); setStatus('Blattformat geändert'); });
+document.querySelector('#sheetOrientation')?.addEventListener('change', event => { state.sheetOrientation = event.target.value; setDirty(); render(); setStatus('Blattausrichtung geändert'); });
+document.querySelector('#exportScaleSelect').addEventListener('change', event => {
+  if (event.target.value === 'custom') {
+    state.exportScaleMode = 'manual'; document.querySelector('#customExportScaleWrap').hidden = false; document.querySelector('#exportScaleStatus').textContent = 'Nenner eingeben: 0,5 ergibt 2:1.'; document.querySelector('#customExportScale').focus(); setDirty(); renderProjectWarnings(); return;
+  }
+  if (event.target.value === 'auto') state.exportScaleMode = 'auto';
+  else { state.exportScaleMode = 'manual'; state.exportScale = Number(event.target.value); }
+  setDirty(); syncExportScaleControls(); renderProjectWarnings();
+});
+document.querySelector('#customExportScale').addEventListener('change', event => { const value = Number(String(event.target.value).replace(',', '.')); if (Number.isFinite(value) && value > 0) { state.exportScaleMode = 'manual'; state.exportScale = value; setDirty(); syncExportScaleControls(); renderProjectWarnings(); } });
+document.querySelectorAll('.view-toggle').forEach(input => input.addEventListener('change', () => { updateViewsFromControls(); setDirty(); render(); setStatus('Exportansichten geändert'); }));
+document.querySelectorAll('.view-button').forEach(button => button.addEventListener('click', () => setActiveView(button.dataset.view)));
+document.querySelector('#commandSearch').addEventListener('input', () => { commandSelectionIndex = 0; renderCommandResults(); });
+document.querySelector('#commandSearch').addEventListener('keydown', event => { const count = filteredCommands().length; if (event.key === 'ArrowDown') { event.preventDefault(); commandSelectionIndex = Math.min(count - 1, commandSelectionIndex + 1); renderCommandResults(); } if (event.key === 'ArrowUp') { event.preventDefault(); commandSelectionIndex = Math.max(0, commandSelectionIndex - 1); renderCommandResults(); } if (event.key === 'Enter') { event.preventDefault(); executeCommand(); } if (event.key === 'Escape') { event.preventDefault(); closeCommandPalette(); } });
+document.querySelector('#commandPalette').addEventListener('pointerdown', event => { if (event.target.id === 'commandPalette') closeCommandPalette(); });
+['#objectSearch', '#objectTypeFilter', '#objectViewFilter', '#objectLayerFilter'].forEach(selector => document.querySelector(selector)?.addEventListener('input', renderObjectList));
+document.querySelector('#objectTypeFilter').innerHTML += Object.entries(toolNames).filter(([type]) => !['select','smartTrim','smartExtend'].includes(type)).map(([type, name]) => `<option value="${type}">${name}</option>`).join('');
+document.querySelector('#objectLayerFilter').innerHTML += state.layers.map(layer => `<option value="${layer.id}">${layer.name}</option>`).join('');
+document.querySelector('#contextMenu').addEventListener('click', event => { const action = event.target.dataset.action; if (!action) return; if (action === 'properties') { const objects = selectedObjects(); if (objects.length > 1) showMultiSelectionProperties(); else if (objects[0]) showProperties(objects[0]); } if (action === 'copy') copySelected(); if (action === 'duplicate') duplicateSelection(); if (action === 'copyToView') { copySelected(); pasteClipboardToView(event.target.dataset.view); } if (action === 'rotate') { const field = propertyPanel.querySelector('[name="rotateAngle"]'); if (field) field.value = 90; rotateSelectedExact(); } if (action === 'mirrorH') mirrorSelected('horizontal'); if (action === 'mirrorV') mirrorSelected('vertical'); if (action === 'dimension') dimensionSelectedFromMenu(); if (action === 'diameterDimension') addDiameterDimension(); if (action === 'angleDimension') addAngleDimensionFromSelection(); if (action === 'material') addSelectedToMaterialList(); if (action === 'delete') deleteSelected(); hideContextMenu(); });
+document.addEventListener('pointerdown', event => { if (!event.target.closest('#contextMenu')) hideContextMenu(); });
+document.querySelector('#gridToggle').addEventListener('change', event => { state.grid = event.target.checked; setDirty(); render(); });
+document.querySelector('#snapToggle').addEventListener('change', event => { state.snap = event.target.checked; setDirty(); });
+document.querySelectorAll('.snap-mode').forEach(input => input.addEventListener('change', event => { state.snapModes[event.target.dataset.snapMode] = event.target.checked; setDirty(); }));
+document.querySelector('#addMaterialRow')?.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); updateMaterialsFromForm(); state.materials.push(defaultMaterialRow()); setDirty(); renderMaterialList(); setStatus('Materialposition hinzugefügt'); });
+document.querySelector('#activeLayer')?.addEventListener('change', event => { state.activeLayer = event.target.value; setDirty(); renderLayerControls(); });
+['#viewExportX', '#viewExportY'].forEach((selector, index) => document.querySelector(selector)?.addEventListener('change', event => { const value = event.target.value === '' ? null : Number(event.target.value); ensureViewSetting()[index === 0 ? 'exportX' : 'exportY'] = Number.isFinite(value) ? value : null; setDirty(); renderProjectWarnings(); }));
+document.querySelector('#newProject').addEventListener('click', () => { if ((state.objects.length || state.materials.length) && !window.confirm('Neue Zeichnung beginnen und aktuelle Arbeit verwerfen?')) return; state.objects = []; state.materials = []; state.history = []; state.redo = []; state.projectName = 'Projekt01'; state.libraryProjectId = null; state.enabledViews = ['front']; state.activeView = 'front'; state.viewReferences = {}; state.viewSettings = {}; state.exportScaleMode = 'auto'; state.exportScale = 10; state.layers.forEach(layer => { layer.visible = true; layer.locked = false; layer.printable = true; }); state.activeLayer = 'contour'; document.querySelector('#projectName').value = state.projectName; loadActiveViewSettings(); syncViewControls(); syncExportScaleControls(); renderLayerControls(); renderMaterialList(); renderProjectLibrary(); selectedId = null; selectedIds.clear(); render(); setDirty(false); setStatus('Neue Zeichnung'); });
+document.querySelector('#saveProject').addEventListener('click', saveProject);
+document.querySelector('#openProjectLibrary')?.addEventListener('click', openProjectLibraryPanel);
+document.querySelector('#exportProjectFile')?.addEventListener('click', saveProjectFile);
+document.querySelector('#saveProjectToLibrary')?.addEventListener('click', () => saveProjectToLibrary());
+document.querySelector('#exportLibraryDb')?.addEventListener('click', exportLibraryDb);
+document.querySelector('#importLibraryDb')?.addEventListener('click', () => dbImportInput?.click());
+document.querySelector('#themeToggle').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
+document.querySelector('#openProject').addEventListener('click', () => fileInput.click());
+document.querySelector('#undoAction')?.addEventListener('click', undo);
+document.querySelector('#redoAction')?.addEventListener('click', redo);
+fileInput.addEventListener('change', event => { if (event.target.files[0]) loadProject(event.target.files[0]); event.target.value = ''; });
+dbImportInput?.addEventListener('change', event => { if (event.target.files[0]) importLibraryDb(event.target.files[0]); event.target.value = ''; });
+document.querySelector('#exportSvg').addEventListener('click', exportSvg);
+document.querySelector('#exportSheetSvg').addEventListener('click', exportSheetSvg);
+document.querySelector('#exportPng').addEventListener('click', exportPng);
+document.querySelector('#exportPdf').addEventListener('click', exportPdf);
+document.querySelector('#zoomIn').addEventListener('click', () => setViewportZoom(state.zoom * 1.2));
+document.querySelector('#zoomOut').addEventListener('click', () => setViewportZoom(state.zoom / 1.2));
+document.querySelector('#fitView').addEventListener('click', fitAllObjects);
+document.querySelector('#fitSelection').addEventListener('click', fitSelectedObject);
+canvas.addEventListener('contextmenu', handleCanvasContextMenu);
+canvas.addEventListener('wheel', event => { event.preventDefault(); setViewportZoom(state.zoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12), canvasScreenPoint(event)); }, { passive: false });
+canvas.addEventListener('pointerdown', handlePointerDown); canvas.addEventListener('pointermove', handlePointerMove); canvas.addEventListener('pointerup', handlePointerUp); canvas.addEventListener('pointerleave', () => { if (!panStart) { pointerStart = null; draggingHandle = null; updateLiveAngle(null, null); clearPreview(); } });
+document.addEventListener('keyup', event => { if (event.code === 'Space') { spacePressed = false; canvas.classList.remove('pan-ready'); } });
+document.addEventListener('keydown', event => { if (event.code === 'Space' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { event.preventDefault(); spacePressed = true; canvas.classList.add('pan-ready'); } if (event.ctrlKey && event.key.toLowerCase() === 's') { event.preventDefault(); saveProject(); } const notEditing = document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA'; if (event.ctrlKey && event.key.toLowerCase() === 'a' && notEditing) { event.preventDefault(); selectedIds = new Set(activeViewObjects().filter(object => !isObjectLocked(object)).map(object => object.id)); selectedId = [...selectedIds].at(-1) || null; render(); setStatus(`${selectedIds.size} Objekte ausgewählt`); } if (event.ctrlKey && event.key.toLowerCase() === 'c' && notEditing) { event.preventDefault(); copySelected(); } if (event.ctrlKey && event.key.toLowerCase() === 'v' && notEditing) { event.preventDefault(); pasteClipboard(); } if (event.ctrlKey && event.key.toLowerCase() === 'z' && notEditing) { event.preventDefault(); undo(); } if (event.ctrlKey && event.key.toLowerCase() === 'y' && notEditing) { event.preventDefault(); redo(); } if (notEditing && event.key >= '1' && event.key <= '7') setTool(toolOrder[Number(event.key) - 1]); if (notEditing && event.key === 'Delete') deleteSelected(); if (event.key === 'Escape') { pointerStart = null; draggingHandle = null; panStart = null; selectionBoxStart = null; selectedId = null; selectedIds.clear(); canvas.classList.remove('panning'); polylinePoints = []; updateLiveAngle(null, null); clearPreview(); render(); setStatus('Auswahl aufgehoben'); } });
+document.addEventListener('keydown', event => { if (event.ctrlKey && event.key.toLowerCase() === 'k') { event.preventDefault(); openCommandPalette(); } });
+document.querySelector('#projectDate').value = state.projectDate;
+document.querySelector('#sheetFormat').value = state.sheetFormat;
+document.querySelector('#sheetOrientation').value = state.sheetOrientation;
+['#projectName', '#drawingNumber', '#drawnBy', '#projectDate'].forEach(selector => document.querySelector(selector)?.addEventListener('input', () => setDirty()));
+syncViewControls();
+renderLayerControls();
+syncViewSettingControls();
+syncExportScaleControls();
+syncDimensionStyleControls();
+renderProjectLibrary();
+renderMaterialList();
+syncScaleControls();
+applyViewBox();
+render();

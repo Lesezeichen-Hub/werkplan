@@ -3,7 +3,8 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const appModules = ['app-core.js', 'app-render.js', 'app-wood.js', 'app-interaction.js', 'app-io.js', 'app-main.js'];
+const appSource = appModules.map(name => fs.readFileSync(path.join(__dirname, '..', name), 'utf8')).join('\n');
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 function extractFunction(name) {
