@@ -227,7 +227,7 @@ function eventPoint(event, objectSnap = false, snapOrigin = null) {
   currentSnap = snapped;
   return snapped.point;
 }
-function toolUsesObjectSnap() { return ['line', 'dimension', 'polyline', 'rect', 'circle', 'semicircle', 'ellipse', 'ellipseArc', 'slot', 'polygon'].includes(state.tool) || isWoodTool(state.tool); }
+function toolUsesObjectSnap() { return ['line', 'dimension', 'polyline', 'rect', 'circle', 'semicircle', 'ellipse', 'ellipseArc', 'slot', 'polygon'].includes(state.tool) || isGeneratedTool(state.tool); }
 function constrainedEndPoint(start, current) {
   const realLength = Number(document.querySelector('#targetLength')?.value);
   if (!realLength || realLength <= 0) return current;
@@ -703,10 +703,11 @@ function setActiveView(view) {
 function commandDefinitions() {
   const toolCommands = Object.entries(toolNames).filter(([tool]) => !['angleDimension', 'polyline', 'ellipse', 'ellipseArc'].includes(tool)).map(([tool, name]) => ({ label: `Werkzeug: ${name}`, keywords: `zeichnen ${tool}`, run: () => setTool(tool) }));
   const woodCommands = Object.entries(woodToolNames).map(([tool, name]) => ({ label: `Werkzeug: ${name}`, keywords: `holz zimmerei fachwerk zeichnen ${tool}`, run: () => setTool(tool) }));
+  const hardwareCommands = Object.entries(hardwareToolNames).map(([tool, name]) => ({ label: `Beschlag: ${name}`, keywords: `beschlag verbinder tischler drehen ${tool}`, run: () => setTool(tool) }));
   const viewCommands = Object.entries(viewNames).map(([view, name]) => ({ label: `Ansicht: ${name}`, keywords: 'arbeitsansicht wechseln', run: () => setActiveView(view) }));
   const layerCommands = state.layers.map(layer => ({ label: `Ebene aktivieren: ${layer.name}`, keywords: 'layer ebene', run: () => { state.activeLayer = layer.id; renderLayerControls(); setDirty(); setStatus(`${layer.name} aktiv`); } }));
   return [
-    ...toolCommands, ...woodCommands, ...viewCommands, ...layerCommands,
+    ...toolCommands, ...woodCommands, ...hardwareCommands, ...viewCommands, ...layerCommands,
     { label: 'Datei: Neues Projekt', keywords: 'neu leeren', run: () => document.querySelector('#newProject').click() },
     { label: 'Datei: Projekt laden', keywords: 'öffnen werkplan', run: () => fileInput.click() },
     { label: 'Datei: Projekt exportieren', keywords: 'export werkplan datei sichern', run: saveProjectFile },

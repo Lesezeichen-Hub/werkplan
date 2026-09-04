@@ -3,7 +3,7 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const appModules = ['app-core.js', 'app-render.js', 'app-wood.js', 'app-interaction.js', 'app-io.js', 'app-main.js'];
+const appModules = ['app-core.js', 'app-render.js', 'app-wood.js', 'app-workshop.js', 'app-interaction.js', 'app-io.js', 'app-main.js'];
 const appSource = appModules.map(name => fs.readFileSync(path.join(__dirname, '..', name), 'utf8')).join('\n');
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
@@ -137,6 +137,25 @@ test('validateProjectData rejects unknown object types and non-numeric fields', 
   assert.match(validateProjectData(null), /kein gültiges Projekt/);
   assert.equal(validateProjectData({ objects: [{ id: 'a', type: 'polyline', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }] }), null);
   assert.match(validateProjectData({ objects: [{ id: 'a', type: 'polyline', points: [{ x: 0 }] }] }), /Punkteliste ungültig/);
+});
+
+test('hardware catalog defines unique tools and generated workflow hooks', () => {
+  const definition = appSource.match(/const hardwareToolNames = (\{[\s\S]*?\n\});/);
+  assert.ok(definition, 'hardware catalog must exist');
+  const catalog = eval(`(${definition[1]})`);
+  assert.equal(Object.keys(catalog).length, new Set(Object.keys(catalog)).size);
+  assert.deepEqual(Object.keys(catalog).sort(), ['bodentraeger', 'confirmat', 'euroschraube', 'exzenter', 'klavierband', 'magnetverschluss', 'moebelverbinder', 'profilEditor', 'schubladenauszug', 'topfband', 'winkel']);
+  assert.match(appSource, /function createHardwareGeometry\(start, end\)/);
+  assert.match(appSource, /function createProfileGeometry\(start, end\)/);
+  assert.match(appSource, /function explodeSelectedGroups\(\)/);
+});
+
+test('template export is selectable and produces tiled 1:1 pages', () => {
+  assert.match(indexSource, /id="exportTemplate"/);
+  assert.match(appSource, /function buildTemplateSvgPages\(objects\)/);
+  assert.match(appSource, /function exportTemplatePdf\(\)/);
+  assert.match(appSource, /Werkplan Schablone 1:1/);
+  assert.match(appSource, /function updateBlankCalculation\(\)/);
 });
 
 test('carpentry automatic dimensions are disabled at the dimension factory', () => {

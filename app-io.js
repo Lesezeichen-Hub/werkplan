@@ -548,6 +548,43 @@ async function exportPdf() {
   downloadBlob(pdf, `${fileBaseName()}.pdf`);
   setStatus('PDF exportiert');
 }
+function templatePoint(value, origin) { return value - origin + 10; }
+function renderTemplateObject(root, object, originX, originY) {
+  const attrs = { ...styleAttrs(object), 'stroke-width': Math.max(.25, Number(object.strokeWidth) || state.strokeWidth), fill: 'none' };
+  const point = value => templatePoint(value, originX); const y = value => templatePoint(value, originY);
+  if (object.type === 'line' || object.type === 'dimension') root.append(makeSvg('line', { ...attrs, x1: point(object.x1), y1: y(object.y1), x2: point(object.x2), y2: y(object.y2) }));
+  if (object.type === 'rect') root.append(makeSvg('rect', { ...attrs, x: point(object.x), y: y(object.y), width: object.width, height: object.height, transform: object.rotation ? `rotate(${object.rotation * 180 / Math.PI} ${point(object.x + object.width / 2)} ${y(object.y + object.height / 2)})` : '' }));
+  if (object.type === 'circle' || object.type === 'semicircle') root.append(object.type === 'circle' ? makeSvg('circle', { ...attrs, cx: point(object.x), cy: y(object.y), r: object.r }) : makeSvg('path', { ...attrs, d: semicirclePath(object, 1, 10 - originX, 10 - originY) }));
+  if (object.type === 'ellipse' || object.type === 'ellipseArc') root.append(object.type === 'ellipse' ? makeSvg('ellipse', { ...attrs, cx: point(object.x), cy: y(object.y), rx: object.rx, ry: object.ry, transform: object.rotation ? `rotate(${object.rotation * 180 / Math.PI} ${point(object.x)} ${y(object.y)})` : '' }) : makeSvg('path', { ...attrs, d: ellipseArcPath(object, 1, 10 - originX, 10 - originY) }));
+  if (object.type === 'slot') root.append(makeSvg('path', { ...attrs, d: slotPath(object, 1, 10 - originX, 10 - originY) }));
+  if (object.type === 'polyline' || object.type === 'polygon') root.append(makeSvg(object.type, { ...attrs, points: object.points.map(entry => `${point(entry.x)},${y(entry.y)}`).join(' ') }));
+}
+function buildTemplateSvgPages(objects) {
+  const bounds = boundsForObjects(objects, 10);
+  if (!bounds) return [];
+  const mm = sheetSizeMm(); const usableWidth = mm.w - 20; const usableHeight = mm.h - 20;
+  const columns = Math.max(1, Math.ceil((bounds.maxX - bounds.minX) / usableWidth)); const rows = Math.max(1, Math.ceil((bounds.maxY - bounds.minY) / usableHeight)); const pages = [];
+  for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+    const originX = bounds.minX + column * usableWidth; const originY = bounds.minY + row * usableHeight;
+    const root = makeSvg('svg', { xmlns: svgNS, width: `${mm.w}mm`, height: `${mm.h}mm`, viewBox: `0 0 ${mm.w} ${mm.h}` });
+    root.append(makeSvg('rect', { width: mm.w, height: mm.h, fill: '#fffdf8' }));
+    root.append(makeSvg('rect', { x: 5, y: 5, width: mm.w - 10, height: mm.h - 10, fill: 'none', stroke: '#263238', 'stroke-width': .35 }));
+    [[10, 5, 10, 15], [5, 10, 15, 10], [mm.w - 10, 5, mm.w - 10, 15], [mm.w - 15, 10, mm.w - 5, 10], [10, mm.h - 5, 10, mm.h - 15], [5, mm.h - 10, 15, mm.h - 10], [mm.w - 10, mm.h - 5, mm.w - 10, mm.h - 15], [mm.w - 15, mm.h - 10, mm.w - 5, mm.h - 10]].forEach(([x1, y1, x2, y2]) => root.append(makeSvg('line', { x1, y1, x2, y2, stroke: '#263238', 'stroke-width': .35 })));
+    objects.forEach(object => renderTemplateObject(root, object, originX, originY));
+    const label = makeSvg('text', { x: mm.w - 10, y: mm.h - 7, 'text-anchor': 'end', fill: '#263238', 'font-size': 3.2 }); label.textContent = `Werkplan Schablone 1:1 · Blatt ${row * columns + column + 1}/${rows * columns}`; root.append(label);
+    pages.push(new XMLSerializer().serializeToString(root));
+  }
+  return pages;
+}
+async function exportTemplatePdf() {
+  const objects = selectedObjects().filter(object => object.type !== 'dimension' && object.type !== 'angleDimension' && object.type !== 'text');
+  if (!objects.length) { setStatus('Für die 1:1-Schablone zuerst Konturen auswählen', 'error'); return; }
+  const pages = buildTemplateSvgPages(objects);
+  const canvases = [];
+  for (const page of pages) canvases.push(await svgToCanvas(page, 2));
+  downloadBlob(buildImagePdf(canvases.map(canvas => canvas.toDataURL('image/jpeg', .95))), `${fileBaseName()}_schablone_1zu1.pdf`);
+  setStatus(`${pages.length} Blatt/Blätter als 1:1-Schablone exportiert`, 'success');
+}
 function projectDataFromState(projectState) {
   return {
     app: 'Werkplan',

@@ -5,6 +5,7 @@
 }));
 document.querySelectorAll('.tool-button').forEach(button => button.addEventListener('click', () => {
   if (button.dataset.planned) { setTool(button.dataset.planned); return; }
+  if (button.dataset.hardware) { setTool(button.dataset.hardware); return; }
   setTool(button.dataset.tool);
 }));
 document.querySelectorAll('.style-button').forEach(button => button.addEventListener('click', () => { state.style = button.dataset.style; setDirty(); document.querySelectorAll('.style-button').forEach(item => item.classList.toggle('active', item === button)); }));
@@ -64,6 +65,7 @@ document.querySelector('#exportSvg').addEventListener('click', exportSvg);
 document.querySelector('#exportSheetSvg').addEventListener('click', exportSheetSvg);
 document.querySelector('#exportPng').addEventListener('click', exportPng);
 document.querySelector('#exportPdf').addEventListener('click', exportPdf);
+document.querySelector('#exportTemplate')?.addEventListener('click', exportTemplatePdf);
 document.querySelector('#zoomIn').addEventListener('click', () => setViewportZoom(state.zoom * 1.2));
 document.querySelector('#zoomOut').addEventListener('click', () => setViewportZoom(state.zoom / 1.2));
 document.querySelector('#fitView').addEventListener('click', fitAllObjects);
@@ -78,11 +80,13 @@ document.querySelector('#projectDate').value = state.projectDate;
 document.querySelector('#sheetFormat').value = state.sheetFormat;
 document.querySelector('#sheetOrientation').value = state.sheetOrientation;
 ['#projectName', '#drawingNumber', '#drawnBy', '#projectDate'].forEach(selector => document.querySelector(selector)?.addEventListener('input', () => setDirty()));
+['#blankDiameter', '#blankLength', '#blankDensity'].forEach(selector => document.querySelector(selector)?.addEventListener('input', updateBlankCalculation));
 syncViewControls();
 renderLayerControls();
 syncViewSettingControls();
 syncExportScaleControls();
 syncDimensionStyleControls();
+updateBlankCalculation();
 renderProjectLibrary();
 renderMaterialList();
 syncScaleControls();

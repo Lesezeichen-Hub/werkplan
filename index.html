@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="de">
 <head>
   <meta charset="utf-8">
@@ -22,6 +22,7 @@
       <button id="exportPng" class="icon-button export-button" title="Zeichnung als PNG exportieren">PNG</button>
       <button id="exportSheetSvg" class="icon-button export-button" title="Zeichnung als SVG exportieren">SVG</button>
       <button id="exportPdf" class="icon-button export-button" title="Zeichnung als PDF exportieren">PDF</button>
+      <button id="exportTemplate" class="text-button" type="button" title="Ausgewählte Konturen als 1:1-Schablone exportieren">Schablone 1:1</button>
       <input id="fileInput" type="file" accept=".werkplan,.json,application/json" hidden>
       <input id="dbImportInput" type="file" accept=".werkplan-db,.json,application/json" hidden>
     </div>
@@ -34,6 +35,7 @@
       <div class="tool-categories" role="tablist" aria-label="Werkzeugkategorien">
         <button type="button" class="tool-category active" data-category="general" role="tab" aria-selected="true">Allgemein</button>
         <button type="button" class="tool-category" data-category="joinery" role="tab" aria-selected="false">Tischlern</button>
+        <button type="button" class="tool-category" data-category="hardware" role="tab" aria-selected="false">Beschläge</button>
         <button type="button" class="tool-category" data-category="carpentry" role="tab" aria-selected="false">Zimmerei</button>
         <button type="button" class="tool-category" data-category="carving" role="tab" aria-selected="false">Kunstschnitzen</button>
         <button type="button" class="tool-category" data-category="turning" role="tab" aria-selected="false">Drechseln</button>
@@ -69,6 +71,18 @@
         <button class="tool-button planned-tool" data-planned="eckverbindung"><span class="tool-icon">∟</span><span>Eckverbindung</span></button>
         <button class="tool-button planned-tool" data-planned="scharnier"><span class="tool-icon">⋮</span><span>Scharnier</span></button>
         <button class="tool-button planned-tool" data-planned="schnittlinie"><span class="tool-icon">A-A</span><span>Schnittlinie</span></button>
+      </div>
+      <div class="tool-grid tool-category-panel" data-category-panel="hardware" role="toolbar" aria-label="Beschlagbibliothek" hidden>
+        <button class="tool-button" data-hardware="topfband"><span class="tool-icon">◉</span><span>Topfband 35</span></button>
+        <button class="tool-button" data-hardware="klavierband"><span class="tool-icon">▯</span><span>Klavierband</span></button>
+        <button class="tool-button" data-hardware="schubladenauszug"><span class="tool-icon">═</span><span>Schubladenauszug</span></button>
+        <button class="tool-button" data-hardware="bodentraeger"><span class="tool-icon">•</span><span>Bodenträger</span></button>
+        <button class="tool-button" data-hardware="exzenter"><span class="tool-icon">⊙</span><span>Exzenterverbinder</span></button>
+        <button class="tool-button" data-hardware="moebelverbinder"><span class="tool-icon">⊞</span><span>Möbelverbinder</span></button>
+        <button class="tool-button" data-hardware="winkel"><span class="tool-icon">∟</span><span>Winkelverbinder</span></button>
+        <button class="tool-button" data-hardware="confirmat"><span class="tool-icon">⊙</span><span>Confirmat</span></button>
+        <button class="tool-button" data-hardware="euroschraube"><span class="tool-icon">⊙</span><span>Euroschraube</span></button>
+        <button class="tool-button" data-hardware="magnetverschluss"><span class="tool-icon">▣</span><span>Magnetverschluss</span></button>
       </div>
       <div class="tool-grid tool-category-panel" data-category-panel="carpentry" role="toolbar" aria-label="Zimmereiwerkzeuge für Fachwerk" hidden>
         <button class="tool-button planned-tool" data-planned="fachwerkWand"><span class="tool-icon">▥</span><span>Fachwerkwand</span></button>
@@ -116,6 +130,7 @@
         <button class="tool-button planned-tool" data-planned="zapfen"><span class="tool-icon">▯</span><span>Zapfen</span></button>
         <button class="tool-button planned-tool" data-planned="wandstaerke"><span class="tool-icon">↔</span><span>Wandstärke</span></button>
         <button class="tool-button planned-tool" data-planned="bohrtiefe"><span class="tool-icon">⇣</span><span>Bohrtiefe</span></button>
+        <button class="tool-button" data-hardware="profilEditor"><span class="tool-icon">◒</span><span>Profil-Editor</span></button>
       </div>
 
       <div class="section-divider"></div>
@@ -152,6 +167,13 @@
         <div class="scale-note">Leer = frei zeichnen</div>
         <label class="field-label" for="polygonSides">Polygonseiten</label>
         <input id="polygonSides" class="text-input" type="number" min="3" max="24" step="1" value="6">
+      </div>
+      <div id="profileEditorPanel" hidden>
+        <div class="section-divider"></div>
+        <div class="panel-heading"><span>Drechselprofil</span></div>
+        <label class="field-label" for="profilePreset">Profilform</label>
+        <select id="profilePreset" class="text-input"><option value="spindle">Spindel</option><option value="bowl">Schale</option><option value="cove">Hohlkehle</option><option value="bead">Wulst</option></select>
+        <div class="scale-note">Vom Anfang bis Ende ziehen. Drehachse und gespiegelte Kontur werden automatisch erzeugt.</div>
       </div>
 
       <div class="section-divider"></div>
@@ -269,6 +291,17 @@
       </details>
 
       <details class="accordion-section">
+        <summary class="panel-heading"><span>Rohling-Kalkulation</span></summary>
+        <label class="field-label" for="blankDiameter">Durchmesser</label>
+        <div class="reference-row"><input id="blankDiameter" type="number" min="1" step="1" value="100"><span>mm</span></div>
+        <label class="field-label" for="blankLength">Länge</label>
+        <div class="reference-row"><input id="blankLength" type="number" min="1" step="1" value="300"><span>mm</span></div>
+        <label class="field-label" for="blankDensity">Rohdichte</label>
+        <div class="reference-row"><input id="blankDensity" type="number" min="100" max="1500" step="10" value="700"><span>kg/m³</span></div>
+        <div id="blankCalculation" class="scale-note"></div>
+      </details>
+
+      <details class="accordion-section">
         <summary class="panel-heading"><span>Ma&szlig;stab &amp; Richtma&szlig;</span></summary>
         <label class="field-label" for="sheetFormat">Blatt</label>
         <div class="scale-row"><select id="sheetFormat" class="scale-select"><option value="A3">A3</option><option value="A4">A4</option></select><select id="sheetOrientation" class="scale-select"><option value="landscape">Quer</option><option value="portrait">Hoch</option></select></div>
@@ -324,6 +357,7 @@
   <script src="app-core.js"></script>
   <script src="app-render.js"></script>
   <script src="app-wood.js"></script>
+  <script src="app-workshop.js"></script>
   <script src="app-interaction.js"></script>
   <script src="app-io.js"></script>
   <script src="app-main.js"></script>
