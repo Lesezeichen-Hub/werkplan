@@ -43,6 +43,7 @@ const resizeEllipseFromHandle = eval(`(${extractFunction('resizeEllipseFromHandl
 const slotWidthHandlePoint = eval(`(${extractFunction('slotWidthHandlePoint')})`);
 const ellipseEdgeDistance = eval(`(${extractFunction('ellipseEdgeDistance')})`);
 const segmentIntersection = eval(`(${extractFunction('segmentIntersection')})`);
+const reflectPointAcrossAxis = eval(`(${extractFunction('reflectPointAcrossAxis')})`);
 const clampDimensionOffset = eval(`(${extractFunction('clampDimensionOffset')})`);
 const projectDataFromState = eval(`(${extractFunction('projectDataFromState')})`);
 
@@ -64,6 +65,14 @@ test('segmentIntersection finds a crossing and rejects parallel segments', () =>
     { x: 5, y: 5 }
   );
   assert.equal(segmentIntersection({ x1: 0, y1: 0, x2: 10, y2: 0 }, { x1: 0, y1: 5, x2: 10, y2: 5 }), null);
+});
+
+test('reflectPointAcrossAxis mirrors points across vertical, horizontal and diagonal axes', () => {
+  assert.deepEqual(reflectPointAcrossAxis({ x: 3, y: 4 }, { x1: 0, y1: 0, x2: 0, y2: 10 }), { x: -3, y: 4 });
+  assert.deepEqual(reflectPointAcrossAxis({ x: 3, y: 4 }, { x1: 0, y1: 0, x2: 10, y2: 0 }), { x: 3, y: -4 });
+  const reflected = reflectPointAcrossAxis({ x: 4, y: 1 }, { x1: 0, y1: 0, x2: 10, y2: 10 });
+  assert.ok(Math.abs(reflected.x - 1) < 0.000001);
+  assert.ok(Math.abs(reflected.y - 4) < 0.000001);
 });
 
 test('rotated rectangle corner resize keeps the opposite corner anchored', () => {
@@ -156,6 +165,18 @@ test('template export is selectable and produces tiled 1:1 pages', () => {
   assert.match(appSource, /function exportTemplatePdf\(\)/);
   assert.match(appSource, /Werkplan Schablone 1:1/);
   assert.match(appSource, /function updateBlankCalculation\(\)/);
+});
+
+test('help dialog is searchable and documents specialist workflows', () => {
+  assert.match(indexSource, /id="helpDialog"/);
+  assert.match(indexSource, /id="helpSearch"/);
+  assert.match(indexSource, /data-help-section/);
+  assert.match(indexSource, /Symmetrieachse und Achsenspiegelung/);
+  assert.match(indexSource, /Beschlagbibliothek/);
+  assert.match(indexSource, /Rohling und Materialliste/);
+  assert.match(indexSource, /Ausgabe und Schablonen/);
+  assert.match(appSource, /function filterHelp\(\)/);
+  assert.match(appSource, /querySelector\('#helpSearch'\)\?\.addEventListener\('input', filterHelp\)/);
 });
 
 test('carpentry automatic dimensions are disabled at the dimension factory', () => {

@@ -107,6 +107,7 @@ Die Sichtbarkeit wird für jede Arbeitsansicht separat gespeichert.
 - Ausgewählte Objekte gemeinsam ziehen, drehen, spiegeln, kopieren oder löschen
 - Im Eigenschaftenbereich gruppieren oder eine Gruppierung aufheben
 - Ein Klick auf ein gruppiertes Objekt wählt beim Verschieben die gesamte Gruppe
+- **An Symmetrieachse spiegeln**: In Kunstschnitzen eine Symmetrieachse zeichnen, diese und die gewünschten Objekte mit **Shift + Klick** markieren und im Eigenschaftenbereich oder Rechtsklickmenü **An Symmetrieachse spiegeln** wählen. Die Achse bleibt unverändert; jede beliebig geneigte Achse wird als unendliche Spiegelgerade verwendet.
 
 ## Objektfang
 

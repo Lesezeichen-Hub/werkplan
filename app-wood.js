@@ -221,7 +221,7 @@ function createWoodGeometry(start, end) {
     return [polyline(stem), polygon([{ x: box.x + box.width * .28, y: midY }, { x: box.x + box.width * .4, y: box.y }, { x: box.x + box.width * .5, y: midY }]), polygon([{ x: box.x + box.width * .58, y: midY }, { x: box.x + box.width * .7, y: y2 }, { x: box.x + box.width * .8, y: midY }])];
   }
   if (state.tool === 'reliefprofil') return [polyline([{ x: box.x, y: y2 }, { x: box.x + box.width * .12, y: y2 }, { x: box.x + box.width * .12, y: box.y + box.height * .65 }, { x: box.x + box.width * .32, y: box.y + box.height * .65 }, { x: box.x + box.width * .42, y: box.y + box.height * .25 }, { x: box.x + box.width * .58, y: box.y + box.height * .25 }, { x: box.x + box.width * .68, y: box.y + box.height * .65 }, { x: box.x + box.width * .88, y: box.y + box.height * .65 }, { x: box.x + box.width * .88, y: y2 }, { x: x2, y: y2 }])];
-  if (state.tool === 'symmetrieachse') return [line(midX, box.y, midX, y2, 'center')];
+  if (state.tool === 'symmetrieachse') return [{ ...line(midX, box.y, midX, y2, 'center'), symmetryAxis: true }];
   if (state.tool === 'drehachse') return [line(box.x, midY, x2, midY, 'center')];
   if (state.tool === 'kehle') {
     const groove = Array.from({ length: 17 }, (_, index) => { const t = index / 16; return { x: box.x + box.width * t, y: box.y + Math.sin(Math.PI * t) * box.height }; });

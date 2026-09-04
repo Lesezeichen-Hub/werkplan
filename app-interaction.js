@@ -453,8 +453,9 @@ function showMultiSelectionProperties() {
   const objects = selectedObjects();
   document.querySelector('#selectionCount').textContent = `${objects.length} ausgewählt`;
   const grouped = objects.every(object => object.groupId && object.groupId === objects[0].groupId);
+  const hasSymmetryAxis = objects.some(object => object.type === 'line' && object.symmetryAxis === true);
   const referenceControl = referenceControlHtml(objects); const referenceResetControl = state.viewReferences[objectView(objects[0])] ? '<button id="clearReference" class="copy-button">Richtmaß dieser Ansicht entfernen</button>' : '';
-  propertyPanel.innerHTML = `<div class="property-note">${objects.length} Teile als ein Werkzeug ausgewählt.</div>${referenceControl}${referenceResetControl}<div class="quick-actions"><button id="moveToActiveLayer" type="button">Auf aktive Ebene</button><button id="moveToNewLayer" type="button">Auf neue Ebene</button><button id="groupSelection" type="button">Gruppieren</button><button id="ungroupSelection" type="button" ${grouped ? '' : 'disabled'}>Gruppierung aufheben</button>${grouped ? `<button id="toggleExplosion" type="button">${objects.some(object => object.explosionOffset) ? 'Explosionsansicht schließen' : 'Explosionsansicht'}</button>` : ''}<button id="addObjectMaterial" type="button">Als Materialposition zuordnen</button><button id="copyObject" type="button">Kopieren</button><label class="wide-field">Drehwinkel ${unitInput('rotateAngle', 90, '°')}</label><button id="rotateExact" type="button">Gemeinsam drehen</button><button id="mirrorHorizontal" type="button">Horizontal spiegeln</button><button id="mirrorVertical" type="button">Vertikal spiegeln</button><button id="deleteSelected" type="button">Auswahl löschen</button></div>${grouped ? `<div class="property-note">Gemeinsame Gruppe</div>` : ''}`;
+  propertyPanel.innerHTML = `<div class="property-note">${objects.length} Teile als ein Werkzeug ausgewählt.</div>${referenceControl}${referenceResetControl}<div class="quick-actions"><button id="moveToActiveLayer" type="button">Auf aktive Ebene</button><button id="moveToNewLayer" type="button">Auf neue Ebene</button><button id="groupSelection" type="button">Gruppieren</button><button id="ungroupSelection" type="button" ${grouped ? '' : 'disabled'}>Gruppierung aufheben</button>${grouped ? `<button id="toggleExplosion" type="button">${objects.some(object => object.explosionOffset) ? 'Explosionsansicht schließen' : 'Explosionsansicht'}</button>` : ''}${hasSymmetryAxis ? '<button id="mirrorAtSymmetryAxis" type="button">An Symmetrieachse spiegeln</button>' : ''}<button id="addObjectMaterial" type="button">Als Materialposition zuordnen</button><button id="copyObject" type="button">Kopieren</button><label class="wide-field">Drehwinkel ${unitInput('rotateAngle', 90, '°')}</label><button id="rotateExact" type="button">Gemeinsam drehen</button><button id="mirrorHorizontal" type="button">Horizontal spiegeln</button><button id="mirrorVertical" type="button">Vertikal spiegeln</button><button id="deleteSelected" type="button">Auswahl löschen</button></div>${grouped ? `<div class="property-note">Gemeinsame Gruppe</div>` : ''}`;
   document.querySelector('#setReference')?.addEventListener('click', setSelectedAsReference);
   document.querySelector('#clearReference')?.addEventListener('click', clearSelectedReference);
   document.querySelector('#referenceSide')?.addEventListener('change', event => { document.querySelector('#referenceLength').value = Math.round(calibratedLength(referenceMeasurement(objects, event.target.value), objects[0])); });
@@ -463,6 +464,7 @@ function showMultiSelectionProperties() {
   document.querySelector('#groupSelection').addEventListener('click', groupSelection);
   document.querySelector('#ungroupSelection').addEventListener('click', ungroupSelection);
   document.querySelector('#toggleExplosion')?.addEventListener('click', explodeSelectedGroups);
+  document.querySelector('#mirrorAtSymmetryAxis')?.addEventListener('click', mirrorSelectedAtSymmetryAxis);
   document.querySelector('#addObjectMaterial').addEventListener('click', addSelectedToMaterialList);
   document.querySelector('#copyObject').addEventListener('click', copySelected);
   document.querySelector('#rotateExact').addEventListener('click', rotateSelectedExact);
@@ -541,6 +543,32 @@ function rotateSelectedExact() {
   pushHistory(); const angle = operationNumber('rotateAngle') * Math.PI / 180; objects.forEach(object => rotateObject(object, angle, center)); render(); setStatus(`${objects.length} Objekt(e) gedreht`);
 }
 function mirrorPoint(point, center, axis) { return axis === 'horizontal' ? { x: point.x, y: center.y * 2 - point.y } : { x: center.x * 2 - point.x, y: point.y }; }
+function reflectPointAcrossAxis(point, axis) {
+  const dx = axis.x2 - axis.x1; const dy = axis.y2 - axis.y1; const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared < 0.001) return { ...point };
+  const factor = ((point.x - axis.x1) * dx + (point.y - axis.y1) * dy) / lengthSquared;
+  const projection = { x: axis.x1 + factor * dx, y: axis.y1 + factor * dy };
+  return { x: projection.x * 2 - point.x, y: projection.y * 2 - point.y };
+}
+function reflectObjectAcrossAxis(object, axis) {
+  const reflect = point => reflectPointAcrossAxis(point, axis);
+  const axisAngle = Math.atan2(axis.y2 - axis.y1, axis.x2 - axis.x1);
+  if (object.type === 'line' || object.type === 'dimension') { const a = reflect({ x: object.x1, y: object.y1 }); const b = reflect({ x: object.x2, y: object.y2 }); Object.assign(object, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }); }
+  if (object.type === 'slot') { const a = reflect({ x: object.x1, y: object.y1 }); const b = reflect({ x: object.x2, y: object.y2 }); Object.assign(object, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }); }
+  if (object.type === 'polyline' || object.type === 'polygon') object.points = object.points.map(reflect);
+  if (object.type === 'rect' || object.type === 'circle' || object.type === 'semicircle' || object.type === 'ellipse' || object.type === 'ellipseArc' || object.type === 'text') { const point = reflect({ x: object.x, y: object.y }); object.x = point.x; object.y = point.y; }
+  if (object.type === 'angleDimension') { const point = reflect({ x: object.cx, y: object.cy }); object.cx = point.x; object.cy = point.y; object.startAngle = 2 * axisAngle - object.startAngle; object.endAngle = 2 * axisAngle - object.endAngle; }
+  if (object.type === 'rect' || object.type === 'ellipse' || object.type === 'ellipseArc' || object.type === 'text') object.rotation = 2 * axisAngle - (object.rotation || 0);
+  if (object.type === 'semicircle') object.angle = 2 * axisAngle - (object.angle || 0);
+  syncLinkedDimensions(object);
+}
+function mirrorSelectedAtSymmetryAxis() {
+  const axis = selectedObjects().find(object => object.type === 'line' && object.symmetryAxis === true);
+  const objects = selectedObjects().filter(object => object !== axis && !isObjectLocked(object));
+  if (!axis) { setStatus('Eine Symmetrieachse und die zu spiegelnden Objekte markieren', 'error'); return; }
+  if (!objects.length) { setStatus('Neben der Symmetrieachse mindestens ein Objekt markieren', 'error'); return; }
+  pushHistory(); objects.forEach(object => reflectObjectAcrossAxis(object, axis)); render(); setStatus(`${objects.length} Objekt(e) an der Symmetrieachse gespiegelt`);
+}
 function mirrorSelected(axis) {
   const objects = selectedObjects(); if (!objects.length) return;
   const bounds = boundsForObjects(objects); const center = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }; pushHistory();
@@ -643,6 +671,7 @@ function showContextMenu(x, y) {
   if (dimensionButton) dimensionButton.textContent = object?.type === 'line' ? 'Länge bemaßen' : object?.type === 'rect' ? 'Breite/Höhe bemaßen' : ['circle', 'semicircle'].includes(object?.type) ? 'Radius bemaßen' : 'Gesamtmaße bemaßen';
   show('properties', objects.length > 0); show('dimension', !locked && objects.length > 0); show('diameterDimension', !locked && objects.length === 1 && ['circle', 'semicircle'].includes(object?.type));
   show('angleDimension', !locked && objects.length === 2 && objects.every(item => item.type === 'line'));
+  show('mirrorAtSymmetryAxis', !locked && objects.length > 1 && objects.some(item => item.type === 'line' && item.symmetryAxis === true));
   show('rotate', !locked && objects.length > 0); show('mirrorH', !locked && objects.length > 0); show('mirrorV', !locked && objects.length > 0); show('copy', !locked && objects.length > 0); show('duplicate', !locked && objects.length > 0); show('delete', !locked && objects.length > 0); show('material', !locked && objects.length > 0);
   menu.querySelectorAll('[data-action="copyToView"]').forEach(button => { button.hidden = locked || !objects.length; });
   const copyLabel = menu.querySelector('.context-menu-label'); if (copyLabel) copyLabel.hidden = locked || !objects.length;

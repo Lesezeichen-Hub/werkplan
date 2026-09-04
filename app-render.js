@@ -718,6 +718,7 @@ function commandDefinitions() {
     { label: 'Export: SVG', keywords: 'ausgabe', run: exportSheetSvg },
     { label: 'Export: PNG', keywords: 'bild ausgabe', run: exportPng },
     { label: 'Export: PDF', keywords: 'drucken ausgabe', run: exportPdf },
+    { label: 'Hilfe: Bedienhinweise öffnen', keywords: 'hilfe anleitung bedienung f1', run: openHelp },
     { label: 'Ansicht: Alles einpassen', keywords: 'zoom fit', run: fitAllObjects },
     { label: 'Ansicht: Auswahl einpassen', keywords: 'zoom objekt fit', run: fitSelectedObject },
     { label: 'Ansicht: Vergrößern', keywords: 'zoom plus', run: () => setViewportZoom(state.zoom * 1.2) },
@@ -746,6 +747,41 @@ function trapCommandPaletteTab(event) {
   const first = focusable[0]; const last = focusable[focusable.length - 1];
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+let helpTriggerElement = null;
+function openHelp() {
+  const dialog = document.querySelector('#helpDialog');
+  helpTriggerElement = document.activeElement;
+  dialog.hidden = false;
+  document.querySelector('#helpSearch').value = '';
+  filterHelp();
+  requestAnimationFrame(() => document.querySelector('#helpSearch').focus());
+}
+function closeHelp() {
+  document.querySelector('#helpDialog').hidden = true;
+  helpTriggerElement?.focus();
+  helpTriggerElement = null;
+}
+function trapHelpTab(event) {
+  if (event.key !== 'Tab') return;
+  const focusable = [...document.querySelectorAll('#helpDialog input, #helpDialog button')];
+  if (!focusable.length) return;
+  const first = focusable[0]; const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+function filterHelp() {
+  const query = (document.querySelector('#helpSearch')?.value || '').trim().toLocaleLowerCase('de-DE');
+  const sections = [...document.querySelectorAll('[data-help-section]')];
+  const matches = sections.filter(section => {
+    const match = !query || section.textContent.toLocaleLowerCase('de-DE').includes(query);
+    section.hidden = !match;
+    return match;
+  });
+  const noResults = document.querySelector('#helpNoResults');
+  if (noResults) noResults.hidden = matches.length > 0;
+  const status = document.querySelector('#helpSearchStatus');
+  if (status) status.textContent = query ? `${matches.length} Treffer` : `${sections.length} Themen`;
 }
 function executeCommand(index = commandSelectionIndex) { const command = filteredCommands()[index]; if (!command) return; closeCommandPalette(); command.run(); }
 function exportViewGroups() {
