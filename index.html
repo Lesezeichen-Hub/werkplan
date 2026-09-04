@@ -18,7 +18,7 @@
       <button id="redoAction" class="text-button" title="Wiederholen">Redo</button>
       <button id="saveProject" class="primary-button">Speichern</button>
       <button id="themeToggle" class="icon-button theme-toggle" type="button" title="Dunkles Design aktivieren" aria-label="Dunkles Design aktivieren" aria-pressed="false">☾</button>
-      <button id="exportSvg" class="icon-button" title="Zeichnung als SVG exportieren">↗</button>
+      <button id="exportSvg" class="icon-button" title="Zeichnung als SVG exportieren" aria-label="Zeichnung als SVG exportieren">↗</button>
       <button id="exportPng" class="icon-button export-button" title="Zeichnung als PNG exportieren">PNG</button>
       <button id="exportSheetSvg" class="icon-button export-button" title="Zeichnung als SVG exportieren">SVG</button>
       <button id="exportPdf" class="icon-button export-button" title="Zeichnung als PDF exportieren">PDF</button>
@@ -183,7 +183,7 @@
 
       <div class="section-divider"></div>
       <div class="panel-heading"><span>Ansicht</span></div>
-      <div class="view-actions"><button id="zoomOut" class="small-button">−</button><strong id="zoomLabel">100%</strong><button id="zoomIn" class="small-button">+</button><button id="fitView" class="fit-button">Alles</button><button id="fitSelection" class="fit-button">Auswahl</button></div>
+      <div class="view-actions"><button id="zoomOut" class="small-button" title="Verkleinern" aria-label="Verkleinern">−</button><strong id="zoomLabel">100%</strong><button id="zoomIn" class="small-button" title="Vergrößern" aria-label="Vergrößern">+</button><button id="fitView" class="fit-button">Alles</button><button id="fitSelection" class="fit-button">Auswahl</button></div>
       <label class="check-row"><input id="gridToggle" type="checkbox" checked> Raster anzeigen</label>
       <label class="check-row"><input id="snapToggle" type="checkbox" checked> Am Raster einrasten</label>
       <details class="snap-options"><summary>Objektfang</summary>
@@ -264,7 +264,7 @@
       </details>
 
       <details class="accordion-section">
-        <summary class="panel-heading"><span>Materialliste</span><button id="addMaterialRow" class="small-button" title="Materialposition hinzuf&uuml;gen">+</button></summary>
+        <summary class="panel-heading"><span>Materialliste</span><button id="addMaterialRow" class="small-button" title="Materialposition hinzuf&uuml;gen" aria-label="Materialposition hinzuf&uuml;gen">+</button></summary>
         <div class="material-list" id="materialList"></div>
       </details>
 
@@ -303,7 +303,7 @@
       <div id="commandResults" class="command-results" role="listbox"></div>
     </div>
   </div>
-  <div id="contextMenu" class="context-menu" hidden>
+  <div id="contextMenu" class="context-menu" role="menu" aria-label="Objektaktionen" hidden>
     <button type="button" data-action="properties">Eigenschaften</button>
     <button type="button" data-action="copy">Kopieren</button>
     <button type="button" data-action="duplicate">Duplizieren</button>

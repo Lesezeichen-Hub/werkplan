@@ -1,4 +1,26 @@
-﻿function openLibraryDb() {
+﻿const VALID_OBJECT_TYPES = new Set(['line', 'rect', 'circle', 'semicircle', 'ellipse', 'ellipseArc', 'polyline', 'polygon', 'slot', 'dimension', 'angleDimension', 'text']);
+const REQUIRED_NUMERIC_FIELDS = {
+  line: ['x1', 'y1', 'x2', 'y2'], dimension: ['x1', 'y1', 'x2', 'y2'], slot: ['x1', 'y1', 'x2', 'y2', 'width'],
+  rect: ['x', 'y', 'width', 'height'], circle: ['x', 'y', 'r'], semicircle: ['x', 'y', 'r'],
+  ellipse: ['x', 'y', 'rx', 'ry'], ellipseArc: ['x', 'y', 'rx', 'ry'],
+  angleDimension: ['cx', 'cy', 'r', 'startAngle', 'endAngle'], text: ['x', 'y']
+};
+function validateProjectObject(object, index) {
+  if (!object || typeof object !== 'object') return `Objekt ${index + 1}: kein gültiges Objekt`;
+  if (typeof object.type !== 'string' || !VALID_OBJECT_TYPES.has(object.type)) return `Objekt ${index + 1}: unbekannter Typ „${object.type}“`;
+  const missingField = (REQUIRED_NUMERIC_FIELDS[object.type] || []).find(field => !Number.isFinite(object[field]));
+  if (missingField) return `Objekt ${index + 1} (${object.type}): Feld „${missingField}“ ist keine gültige Zahl`;
+  if ((object.type === 'polyline' || object.type === 'polygon') && (!Array.isArray(object.points) || object.points.length < 2 || object.points.some(point => !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)))) return `Objekt ${index + 1} (${object.type}): Punkteliste ungültig`;
+  return null;
+}
+function validateProjectData(data) {
+  if (!data || typeof data !== 'object') return 'Datei enthält kein gültiges Projekt';
+  if (data.objects !== undefined && !Array.isArray(data.objects)) return 'Feld „objects“ muss eine Liste sein';
+  if (Array.isArray(data.objects)) for (let index = 0; index < data.objects.length; index += 1) { const error = validateProjectObject(data.objects[index], index); if (error) return error; }
+  if (data.materials !== undefined && !Array.isArray(data.materials)) return 'Feld „materials“ muss eine Liste sein';
+  return null;
+}
+function openLibraryDb() {
   return new Promise((resolve, reject) => {
     if (!window.indexedDB) { reject(new Error('IndexedDB nicht verfügbar')); return; }
     const request = indexedDB.open(libraryDbName, libraryDbVersion);
@@ -192,13 +214,15 @@ function importLibraryDb(file) {
       if (!window.confirm('Aktuelle Projektbibliothek durch den Import ersetzen?')) return;
       await clearLibraryProjects();
       const uniqueProjects = new Map();
+      let skipped = 0;
       for (const project of projects) {
-        if (project?.id && project?.data) uniqueProjects.set(projectNameKey(project.name || project.data.projectName), normalizedLibraryRecord(project));
+        if (project?.id && project?.data && !validateProjectData(project.data)) uniqueProjects.set(projectNameKey(project.name || project.data.projectName), normalizedLibraryRecord(project));
+        else skipped += 1;
       }
       for (const project of uniqueProjects.values()) await putLibraryProject(project);
       state.libraryProjectId = null;
       await renderProjectLibrary();
-      setStatus('Bibliothek importiert');
+      setStatus(skipped ? `Bibliothek importiert (${skipped} ungültige Projekt(e) übersprungen)` : 'Bibliothek importiert');
     } catch {
       setStatus('DB-Import konnte nicht gelesen werden');
     }
@@ -609,6 +633,8 @@ loadProject = function(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
+      const validationError = validateProjectData(data);
+      if (validationError) { setStatus(`Datei ungültig: ${validationError}`, 'error'); return; }
       pushHistory();
       loadProjectData(data);
       state.libraryProjectId = null;

@@ -156,7 +156,7 @@ function renderObjectList() {
     const summary = members.length > 1 && bounds ? `${formatLength(calibratedLength(bounds.maxX - bounds.minX, object))} x ${formatLength(calibratedLength(bounds.maxY - bounds.minY, object))}` : objectSummary(object);
     const label = `${index + 1}. ${groupName} - ${summary} - ${viewNames[objectView(object)]}`;
     const allHidden = members.every(item => item.visible === false); const anyLocked = members.some(isObjectLocked);
-    row.innerHTML = `<button type="button" title="Sichtbarkeit">${allHidden ? '○' : '●'}</button><button type="button" title="Sperre">${anyLocked ? '■' : '□'}</button><span title="${escapeHtml(materialSuffix || `${members.length} Teil(e)`)}">${activeLayerMarker}${escapeHtml(label + materialSuffix)}</span><button type="button" title="Auswählen">›</button>`;
+    row.innerHTML = `<button type="button" title="Sichtbarkeit" aria-label="${escapeHtml(groupName)} ${allHidden ? 'einblenden' : 'ausblenden'}">${allHidden ? '○' : '●'}</button><button type="button" title="Sperre" aria-label="${escapeHtml(groupName)} ${anyLocked ? 'entsperren' : 'sperren'}">${anyLocked ? '■' : '□'}</button><span title="${escapeHtml(materialSuffix || `${members.length} Teil(e)`)}">${activeLayerMarker}${escapeHtml(label + materialSuffix)}</span><button type="button" title="Auswählen" aria-label="${escapeHtml(groupName)} auswählen">›</button>`;
     const selectEntry = () => { selectObject(object.id); members.forEach(item => selectedIds.add(item.id)); selectedId = object.id; render(); setStatus(`${groupName} ausgewählt`); };
     row.querySelector('button:first-child').addEventListener('click', event => { event.stopPropagation(); pushHistory(); const visible = allHidden; members.forEach(item => { item.visible = visible; }); render(); setStatus(`${groupName} ${visible ? 'eingeblendet' : 'ausgeblendet'}`); });
     row.querySelector('button:nth-child(2)').addEventListener('click', event => { event.stopPropagation(); pushHistory(); const locked = !anyLocked; members.forEach(item => { item.locked = locked; }); render(); setStatus(`${groupName} ${locked ? 'gesperrt' : 'entsperrt'}`); });
@@ -632,6 +632,7 @@ function applySelectedChanges() {
   render();
   setStatus('Änderungen übernommen');
 }
+let contextMenuTriggerElement = null;
 function showContextMenu(x, y) {
   const menu = document.querySelector('#contextMenu'); const objects = selectedObjects(); const object = objects.length === 1 ? objects[0] : null; const locked = objects.some(isObjectLocked);
   menu.querySelectorAll('[data-action]').forEach(button => { button.hidden = true; });
@@ -644,8 +645,25 @@ function showContextMenu(x, y) {
   menu.querySelectorAll('[data-action="copyToView"]').forEach(button => { button.hidden = locked || !objects.length; });
   const copyLabel = menu.querySelector('.context-menu-label'); if (copyLabel) copyLabel.hidden = locked || !objects.length;
   menu.hidden = false; menu.style.left = `${Math.min(x, innerWidth - 190)}px`; menu.style.top = `${Math.max(6, Math.min(y, innerHeight - menu.offsetHeight - 6))}px`;
+  menu.querySelector('button[data-action]:not([hidden])')?.focus();
 }
-function hideContextMenu() { document.querySelector('#contextMenu').hidden = true; }
+function hideContextMenu() {
+  const menu = document.querySelector('#contextMenu');
+  const wasOpen = !menu.hidden;
+  menu.hidden = true;
+  if (wasOpen) contextMenuTriggerElement?.focus();
+  contextMenuTriggerElement = null;
+}
+function navigateContextMenu(event) {
+  const menu = document.querySelector('#contextMenu');
+  if (menu.hidden) return;
+  const items = [...menu.querySelectorAll('button[data-action]:not([hidden])')];
+  if (!items.length) return;
+  const currentIndex = items.indexOf(document.activeElement);
+  if (event.key === 'ArrowDown') { event.preventDefault(); items[(currentIndex + 1 + items.length) % items.length].focus(); }
+  if (event.key === 'ArrowUp') { event.preventDefault(); items[(currentIndex - 1 + items.length) % items.length].focus(); }
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); hideContextMenu(); }
+}
 function contextObjectAtPoint(point) {
   const threshold = Math.max(18, drawingScale() * 18);
   const pointChainDistance = (points, closed = false) => {
@@ -702,6 +720,7 @@ function handleCanvasContextMenu(event) {
     selectObject(object.id);
     if (object.groupId) { state.objects.filter(item => item.groupId === object.groupId).forEach(item => selectedIds.add(item.id)); selectedId = object.id; render(); }
   }
+  contextMenuTriggerElement = document.activeElement;
   showContextMenu(event.clientX, event.clientY);
 }
 function dimensionSelectedFromMenu() {

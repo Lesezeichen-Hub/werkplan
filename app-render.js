@@ -1,4 +1,5 @@
-﻿function makeSvg(tag, attrs = {}) {
+﻿let paletteTriggerElement = null;
+function makeSvg(tag, attrs = {}) {
   const element = document.createElementNS(svgNS, tag);
   Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
   return element;
@@ -562,7 +563,7 @@ function renderLayerControls() {
     const row = document.createElement('div'); row.className = `layer-row${layer.id === state.activeLayer ? ' active' : ''}${layer.locked ? ' locked' : ''}`;
     const layerIndex = state.layers.indexOf(layer);
     row.draggable = true;
-    row.innerHTML = `<button type="button" data-action="activate" title="Ebene aktivieren">${layer.id === state.activeLayer ? '● ' : ''}${escapeHtml(layer.name)}</button><button type="button" class="layer-order-button" data-action="rename" title="Ebene umbenennen">✎</button><button type="button" class="layer-order-button" data-action="duplicate" title="Ebene duplizieren">＋</button><button type="button" class="layer-order-button" data-action="delete" title="Ebene löschen" ${state.layers.length === 1 ? 'disabled' : ''}>×</button><button type="button" class="layer-order-button" data-action="backward" title="Ebene nach hinten verschieben" ${layerIndex === 0 ? 'disabled' : ''}>↓</button><button type="button" class="layer-order-button" data-action="forward" title="Ebene nach vorne verschieben" ${layerIndex === state.layers.length - 1 ? 'disabled' : ''}>↑</button><label title="Sichtbar"><input type="checkbox" data-action="visible" ${layer.visible !== false ? 'checked' : ''}>S</label><label title="Gesperrt"><input type="checkbox" data-action="locked" ${layer.locked ? 'checked' : ''}>G</label><label title="Druckbar"><input type="checkbox" data-action="printable" ${layer.printable !== false ? 'checked' : ''}>D</label>`;
+    row.innerHTML = `<button type="button" data-action="activate" title="Ebene aktivieren" aria-label="Ebene „${escapeHtml(layer.name)}“ aktivieren">${layer.id === state.activeLayer ? '● ' : ''}${escapeHtml(layer.name)}</button><button type="button" class="layer-order-button" data-action="rename" title="Ebene umbenennen" aria-label="Ebene „${escapeHtml(layer.name)}“ umbenennen">✎</button><button type="button" class="layer-order-button" data-action="duplicate" title="Ebene duplizieren" aria-label="Ebene „${escapeHtml(layer.name)}“ duplizieren">＋</button><button type="button" class="layer-order-button" data-action="delete" title="Ebene löschen" aria-label="Ebene „${escapeHtml(layer.name)}“ löschen" ${state.layers.length === 1 ? 'disabled' : ''}>×</button><button type="button" class="layer-order-button" data-action="backward" title="Ebene nach hinten verschieben" aria-label="Ebene „${escapeHtml(layer.name)}“ nach hinten verschieben" ${layerIndex === 0 ? 'disabled' : ''}>↓</button><button type="button" class="layer-order-button" data-action="forward" title="Ebene nach vorne verschieben" aria-label="Ebene „${escapeHtml(layer.name)}“ nach vorne verschieben" ${layerIndex === state.layers.length - 1 ? 'disabled' : ''}>↑</button><label title="Sichtbar"><input type="checkbox" data-action="visible" aria-label="Ebene „${escapeHtml(layer.name)}“ sichtbar" ${layer.visible !== false ? 'checked' : ''}>S</label><label title="Gesperrt"><input type="checkbox" data-action="locked" aria-label="Ebene „${escapeHtml(layer.name)}“ gesperrt" ${layer.locked ? 'checked' : ''}>G</label><label title="Druckbar"><input type="checkbox" data-action="printable" aria-label="Ebene „${escapeHtml(layer.name)}“ druckbar" ${layer.printable !== false ? 'checked' : ''}>D</label>`;
     row.querySelector('[data-action="activate"]').addEventListener('click', () => { state.activeLayer = layer.id; setDirty(); renderLayerControls(); });
     row.querySelector('[data-action="activate"]').addEventListener('dblclick', () => renameLayer(layer.id));
     row.querySelector('[data-action="rename"]').addEventListener('click', () => renameLayer(layer.id));
@@ -735,8 +736,16 @@ function renderCommandResults() {
   if (!commands.length) { const empty = document.createElement('div'); empty.className = 'command-empty'; empty.textContent = 'Kein passender Befehl'; results.append(empty); return; }
   commands.forEach((command, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = index === commandSelectionIndex ? 'active' : ''; button.setAttribute('role', 'option'); button.setAttribute('aria-selected', String(index === commandSelectionIndex)); button.textContent = command.label; button.addEventListener('mouseenter', () => { commandSelectionIndex = index; [...results.querySelectorAll('button')].forEach((item, itemIndex) => { item.classList.toggle('active', itemIndex === index); item.setAttribute('aria-selected', String(itemIndex === index)); }); }); button.addEventListener('click', () => executeCommand(index)); results.append(button); });
 }
-function openCommandPalette() { const palette = document.querySelector('#commandPalette'); palette.hidden = false; document.querySelector('#commandSearch').value = ''; commandSelectionIndex = 0; renderCommandResults(); requestAnimationFrame(() => document.querySelector('#commandSearch').focus()); }
-function closeCommandPalette() { document.querySelector('#commandPalette').hidden = true; }
+function openCommandPalette() { const palette = document.querySelector('#commandPalette'); paletteTriggerElement = document.activeElement; palette.hidden = false; document.querySelector('#commandSearch').value = ''; commandSelectionIndex = 0; renderCommandResults(); requestAnimationFrame(() => document.querySelector('#commandSearch').focus()); }
+function closeCommandPalette() { document.querySelector('#commandPalette').hidden = true; paletteTriggerElement?.focus(); paletteTriggerElement = null; }
+function trapCommandPaletteTab(event) {
+  if (event.key !== 'Tab') return;
+  const focusable = [...document.querySelectorAll('#commandSearch, #commandResults button')];
+  if (!focusable.length) return;
+  const first = focusable[0]; const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
 function executeCommand(index = commandSelectionIndex) { const command = filteredCommands()[index]; if (!command) return; closeCommandPalette(); command.run(); }
 function exportViewGroups() {
   const visible = state.objects.filter(isObjectPrintable);

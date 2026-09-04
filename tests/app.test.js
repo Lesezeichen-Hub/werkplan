@@ -46,6 +46,14 @@ const segmentIntersection = eval(`(${extractFunction('segmentIntersection')})`);
 const clampDimensionOffset = eval(`(${extractFunction('clampDimensionOffset')})`);
 const projectDataFromState = eval(`(${extractFunction('projectDataFromState')})`);
 
+function extractValidateProjectData() {
+  const start = appSource.indexOf('const VALID_OBJECT_TYPES');
+  const end = appSource.indexOf('function validateProjectData(data) {', start);
+  const block = appSource.slice(start, end) + extractFunction('validateProjectData');
+  return eval(`(() => { ${block}\n return validateProjectData; })()`);
+}
+const validateProjectData = extractValidateProjectData();
+
 test('distance calculates Euclidean length', () => {
   assert.equal(distance({ x: 0, y: 0 }, { x: 3, y: 4 }), 5);
 });
@@ -115,6 +123,20 @@ test('project data survives JSON save/load round trip', () => {
   assert.deepEqual(loaded.materials, state.materials);
   assert.deepEqual(loaded.settings.dimensionStyle, state.dimensionStyle);
   assert.deepEqual(loaded.settings.enabledViews, state.enabledViews);
+});
+
+test('validateProjectData accepts a well-formed project', () => {
+  const data = { objects: [{ id: 'a', type: 'line', x1: 0, y1: 0, x2: 10, y2: 10 }], materials: [] };
+  assert.equal(validateProjectData(data), null);
+});
+
+test('validateProjectData rejects unknown object types and non-numeric fields', () => {
+  assert.match(validateProjectData({ objects: [{ id: 'a', type: 'flux-capacitor' }] }), /unbekannter Typ/);
+  assert.match(validateProjectData({ objects: [{ id: 'a', type: 'line', x1: 'nope', y1: 0, x2: 10, y2: 10 }] }), /keine gültige Zahl/);
+  assert.match(validateProjectData({ objects: 'not-an-array' }), /objects.*Liste/);
+  assert.match(validateProjectData(null), /kein gültiges Projekt/);
+  assert.equal(validateProjectData({ objects: [{ id: 'a', type: 'polyline', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }] }), null);
+  assert.match(validateProjectData({ objects: [{ id: 'a', type: 'polyline', points: [{ x: 0 }] }] }), /Punkteliste ungültig/);
 });
 
 test('carpentry automatic dimensions are disabled at the dimension factory', () => {
