@@ -774,7 +774,14 @@ function filterHelp() {
   const query = (document.querySelector('#helpSearch')?.value || '').trim().toLocaleLowerCase('de-DE');
   const sections = [...document.querySelectorAll('[data-help-section]')];
   const matches = sections.filter(section => {
-    const match = !query || section.textContent.toLocaleLowerCase('de-DE').includes(query);
+    const faqs = [...section.querySelectorAll('.help-faq')];
+    const faqMatches = faqs.filter(faq => {
+      const match = !query || faq.textContent.toLocaleLowerCase('de-DE').includes(query);
+      faq.hidden = !match;
+      return match;
+    });
+    const directText = [...section.children].filter(child => !child.classList.contains('help-faq')).map(child => child.textContent).join(' ').toLocaleLowerCase('de-DE');
+    const match = !query || directText.includes(query) || faqMatches.length > 0;
     section.hidden = !match;
     return match;
   });

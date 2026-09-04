@@ -175,6 +175,10 @@ test('help dialog is searchable and documents specialist workflows', () => {
   assert.match(indexSource, /Beschlagbibliothek/);
   assert.match(indexSource, /Rohling und Materialliste/);
   assert.match(indexSource, /Ausgabe und Schablonen/);
+  assert.match(indexSource, /FAQ: Häufige Fragen/);
+  assert.match(indexSource, /Wie erstelle ich gespiegelte Objekte/);
+  assert.match(indexSource, /Wie berechne ich das Rohmaß für einen Drechselrohling/);
+  assert.match(indexSource, /Wie exportiere ich eine Schablone im Maßstab 1:1/);
   assert.match(appSource, /function filterHelp\(\)/);
   assert.match(appSource, /querySelector\('#helpSearch'\)\?\.addEventListener\('input', filterHelp\)/);
 });
