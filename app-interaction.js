@@ -175,8 +175,19 @@ function drawAngleLabel(start, end) {
   label.textContent = formatAngle(angleDegrees(start, end));
   previewLayer.append(label);
 }
+function handleRadius(zoom = state.zoom) {
+  const value = Number(zoom);
+  return 6 / Math.max(0.25, Number.isFinite(value) && value > 0 ? value : 1);
+}
+function pointHandleIndexes(pointCount, compact = false, maximum = 24) {
+  const count = Math.max(0, Number(pointCount) || 0);
+  if (!compact || count <= maximum) return Array.from({ length: count }, (_, index) => index);
+  const indexes = new Set();
+  for (let index = 0; index < maximum; index++) indexes.add(Math.round(index * (count - 1) / (maximum - 1)));
+  return [...indexes].sort((a, b) => a - b);
+}
 function addHandle(x, y, kind) {
-  const handle = makeSvg('circle', { cx: canvasValue(x), cy: canvasValue(y), r: 6, class: 'handle-point', 'data-handle': kind });
+  const handle = makeSvg('circle', { cx: canvasValue(x), cy: canvasValue(y), r: handleRadius(), class: 'handle-point', 'data-handle': kind });
   handle.addEventListener('pointerdown', event => {
     event.preventDefault();
     event.stopPropagation();
@@ -236,7 +247,9 @@ function renderHandles() {
     addHandle(object.x2, object.y2, 'p2');
     addHandle(width.x, width.y, 'slotWidth');
   }
-  if (object.type === 'polyline' || object.type === 'polygon') object.points.forEach((point, index) => addHandle(point.x, point.y, `point:${index}`));
+  if (object.type === 'polyline' || object.type === 'polygon') pointHandleIndexes(object.points.length, object.compactHandles === true).forEach(index => {
+    const point = object.points[index]; addHandle(point.x, point.y, `point:${index}`);
+  });
   if (object.type === 'text') addHandle(object.x, object.y, 'textAnchor');
   if (object.type === 'angleDimension') {
     addHandle(object.cx, object.cy, 'angleCenter');

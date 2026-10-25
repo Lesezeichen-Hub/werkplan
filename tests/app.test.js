@@ -7,6 +7,17 @@ const appModules = ['app-core.js', 'app-render.js', 'app-wood.js', 'app-workshop
 const appSource = appModules.map(name => fs.readFileSync(path.join(__dirname, '..', name), 'utf8')).join('\n');
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
+test('selection handles keep a constant screen size and imported contours stay manageable', () => {
+  const handleRadius = eval(`(${extractFunction('handleRadius')})`);
+  const pointHandleIndexes = eval(`(${extractFunction('pointHandleIndexes')})`);
+  assert.equal(handleRadius(1), 6);
+  assert.equal(handleRadius(6), 1);
+  assert.equal(handleRadius(0.5), 12);
+  assert.equal(pointHandleIndexes(100, true).length, 24);
+  assert.equal(pointHandleIndexes(10, true).length, 10);
+  assert.equal(pointHandleIndexes(30, false).length, 30);
+});
+
 function extractFunction(name) {
   const start = appSource.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `function ${name} must exist`);
